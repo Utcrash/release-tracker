@@ -1,0 +1,64 @@
+.sidebar {
+  /* Basic structure is now in App.css */
+}
+
+.sidebar .nav-link {
+  color: var(--dark-text-muted);
+  padding: 10px 15px;
+  border-radius: 5px;
+  margin-bottom: 5px;
+  font-size: 0.95rem;
+}
+
+.sidebar .nav-link:hover {
+  color: var(--dark-text);
+  background-color: var(--dark-hover);
+}
+
+.sidebar .nav-link.active {
+  color: #fff;
+  background-color: #0d6efd;
+}
+
+.sidebar .nav-link i {
+  margin-right: 10px;
+  font-size: 1.1rem;
+  width: 20px;
+  text-align: center;
+}
+
+.sidebar .nav-header {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sidebar .sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--dark-border);
+  margin-bottom: 15px;
+}
+
+.sidebar .sidebar-header h5 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+/* Dark theme specific */
+.dark-theme .sidebar {
+  background-color: var(--dark-card);
+  border-right: 1px solid var(--dark-border);
+}
+
+.dark-theme .sidebar .nav-link:hover {
+  background-color: var(--dark-hover);
+}
+
+.dark-theme .sidebar .nav-link.active {
+  background-color: #0d6efd;
+} 

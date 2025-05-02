@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    restart: always
+    volumes:
+      - mongodb_data:/data/db
+    ports:
+      - '27017:27017'
+    networks:
+      - app-network
+
+  release-app:
+    build:
+      context: .
+      args:
+        - REACT_APP_API_URL=/release/api
+        - REACT_APP_BASE_PATH=/release
+    container_name: release-app
+    restart: always
+    ports:
+      - '3001:3001'
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - MONGODB_URI=mongodb://mongodb:27017/dnio-release-tracker
+      - REACT_APP_API_URL=/release/api
+      - REACT_APP_BASE_PATH=/release
+      # Add your JIRA credentials here or use environment variables from host
+      # - JIRA_API_KEY=your_api_key
+      # - JIRA_EMAIL=your_email
+      # - JIRA_URL=your_jira_url
+    depends_on:
+      - mongodb
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:

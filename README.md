@@ -1,46 +1,99 @@
-# Getting Started with Create React App
+# Release Tracker Application
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A React and Node.js application for tracking releases and JIRA tickets.
 
-## Available Scripts
+## Development Setup
+
+### Prerequisites
+
+- Node.js (v16 or higher)
+- MongoDB (if running locally)
+
+### Available Scripts
 
 In the project directory, you can run:
 
-### `npm start`
+#### `npm start`
 
-Runs the app in the development mode.\
+Runs the React app in development mode.\
 Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+#### `npm run start-backend`
 
-### `npm test`
+Starts the backend server in development mode on port 3001.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+#### `npm run build`
 
-### `npm run build`
+Builds the app for production to the `build` folder.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Docker Deployment
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+This application can be deployed using Docker to run at a specific URL path (`/release`).
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Setting up Environment Variables
 
-### `npm run eject`
+1. Run the setup script to create your `.env` file:
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+   ```bash
+   ./setup-env.sh
+   ```
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+2. This will prompt you for the necessary environment variables:
+   - `PORT`: Port for the server (default: 3001)
+   - `MONGODB_URI`: MongoDB connection string
+   - `REACT_APP_API_URL`: API URL path (default: /release/api)
+   - `REACT_APP_BASE_PATH`: Base path for the application (default: /release)
+   - JIRA credentials (if needed)
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+### Building and Running with Docker
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+#### Using Docker Compose (Recommended)
 
-## Learn More
+1. Build the containers:
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+   ```bash
+   docker-compose build
+   ```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+2. Start the application:
+
+   ```bash
+   docker-compose up -d
+   ```
+
+3. The application will be available at `http://your-server:3001/release`
+
+#### Manual Docker Setup
+
+1. Build the Docker image:
+
+   ```bash
+   docker build -t release-tracker \
+     --build-arg REACT_APP_API_URL=/release/api \
+     --build-arg REACT_APP_BASE_PATH=/release .
+   ```
+
+2. Run the container:
+   ```bash
+   docker run -d -p 3001:3001 \
+     -e NODE_ENV=production \
+     -e PORT=3001 \
+     -e MONGODB_URI=mongodb://your-mongodb-host:27017/dnio-release-tracker \
+     -e REACT_APP_API_URL=/release/api \
+     -e REACT_APP_BASE_PATH=/release \
+     --name release-app release-tracker
+   ```
+
+## Environment Variables
+
+The application uses the following environment variables:
+
+| Variable            | Description                   | Default                                        |
+| ------------------- | ----------------------------- | ---------------------------------------------- |
+| PORT                | Server port                   | 3001                                           |
+| MONGODB_URI         | MongoDB connection string     | mongodb://localhost:27017/dnio-release-tracker |
+| REACT_APP_API_URL   | API URL path                  | /release/api                                   |
+| REACT_APP_BASE_PATH | Base path for the application | /release                                       |
+| JIRA_API_KEY        | JIRA API key                  | (required for JIRA integration)                |
+| JIRA_EMAIL          | JIRA email                    | (required for JIRA integration)                |
+| JIRA_URL            | JIRA instance URL             | (required for JIRA integration)                |

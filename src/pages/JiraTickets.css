@@ -1,0 +1,106 @@
+.dark-theme {
+    background-color: #1a1d21;
+    color: #e1e3e5;
+}
+
+.dark-theme .text-light-muted {
+    color: #8c9196 !important;
+}
+
+.dark-theme .table-dark {
+    background-color: #1a1d21;
+    color: #e1e3e5;
+}
+
+.dark-theme .table-dark td,
+.dark-theme .table-dark th {
+    background-color: #1a1d21;
+}
+
+.dark-theme .table-hover tbody tr:hover {
+    background-color: #2c3034;
+    color: #ffffff;
+}
+
+.dark-theme .form-control::placeholder {
+    color: #6c757d;
+}
+
+.dark-theme .form-control:focus {
+    background-color: #2c3034;
+    border-color: #4d5154;
+    box-shadow: 0 0 0 0.25rem rgba(255, 255, 255, 0.1);
+    color: #e1e3e5;
+}
+
+.dark-theme .card {
+    background-color: #1a1d21;
+}
+
+.dark-theme .badge {
+    font-size: 0.85em;
+    padding: 0.4em 0.8em;
+}
+
+.dark-theme .badge.bg-dark {
+    background-color: #2c3034 !important;
+}
+
+.dark-theme .table-responsive {
+    scrollbar-width: thin;
+    scrollbar-color: #4d5154 #1a1d21;
+}
+
+.dark-theme .table-responsive::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.dark-theme .table-responsive::-webkit-scrollbar-track {
+    background: #1a1d21;
+}
+
+.dark-theme .table-responsive::-webkit-scrollbar-thumb {
+    background-color: #4d5154;
+    border-radius: 4px;
+}
+
+.dark-theme .btn-outline-light:hover {
+    background-color: #2c3034;
+    color: #ffffff;
+    border-color: #4d5154;
+}
+
+.dark-theme .input-group-text {
+    color: #8c9196;
+}
+
+/* Animation for loading spinner */
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.dark-theme .spinner-border {
+    animation: spin 1s linear infinite;
+}
+
+/* Fix for checkboxes in dark theme */
+.dark-theme .form-check-input {
+    background-color: #2c3034;
+    border-color: #6c757d;
+    position: relative;
+}
+
+.dark-theme .form-check-input:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M6 10l3 3l6-6'/%3e%3c/svg%3e");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 70%;
+}
+
+.dark-theme .form-check-input:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+} 
