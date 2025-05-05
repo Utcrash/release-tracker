@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Release, ComponentDelivery } from '../types';
+import { Release, ComponentDelivery, JiraTicket } from '../types';
 import { releaseService } from '../services/releaseService';
+import { jiraService } from '../services/jiraService';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '../styles/darkTheme.css';
 
@@ -16,6 +17,7 @@ interface EditReleaseFormData {
   notes: string;
   additionalPoints: string[];
   componentDeliveries: ComponentDelivery[];
+  jiraTickets: JiraTicket[];
 }
 
 const EditRelease: React.FC = () => {
@@ -26,6 +28,15 @@ const EditRelease: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [availableJiraTickets, setAvailableJiraTickets] = useState<
+    JiraTicket[]
+  >([]);
+  const [isLoadingJiraTickets, setIsLoadingJiraTickets] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [fixVersionFilter, setFixVersionFilter] = useState<string>('all');
+  const [availableFixVersions, setAvailableFixVersions] = useState<string[]>(
+    []
+  );
   const [formData, setFormData] = useState<EditReleaseFormData>({
     version: '',
     releaseDate: '',
@@ -33,6 +44,7 @@ const EditRelease: React.FC = () => {
     notes: '',
     additionalPoints: [''],
     componentDeliveries: [],
+    jiraTickets: [],
   });
 
   useEffect(() => {
@@ -61,6 +73,24 @@ const EditRelease: React.FC = () => {
             componentDeliveries: releaseData.componentDeliveries?.length
               ? releaseData.componentDeliveries
               : [],
+            jiraTickets: Array.isArray(releaseData.jiraTickets)
+              ? releaseData.jiraTickets.map((ticket) => {
+                  // Handle if the ticket is just a string ID or a full JiraTicket object
+                  if (typeof ticket === 'string') {
+                    return {
+                      ticketId: ticket,
+                      summary: '',
+                      status: '',
+                      assignee: '',
+                      created: '',
+                      updated: '',
+                      components: [],
+                      fixVersions: [],
+                    };
+                  }
+                  return ticket as JiraTicket;
+                })
+              : [],
           });
         } catch (releaseError) {
           console.error('Error fetching release:', releaseError);
@@ -76,7 +106,46 @@ const EditRelease: React.FC = () => {
     };
 
     fetchData();
+    fetchJiraTickets();
   }, [id]);
+
+  const fetchJiraTickets = async () => {
+    try {
+      setIsLoadingJiraTickets(true);
+      // Fetch tickets that are ready for release
+      const readyTickets = await jiraService.getReadyForReleaseTickets();
+      // Fetch tickets that are already in Done status
+      const doneTickets = await jiraService.getDoneTickets();
+      // Fetch in progress tickets
+      const inProgressTickets = await jiraService.getInProgressTickets();
+
+      // Combine and remove duplicates
+      const allTickets = [
+        ...readyTickets,
+        ...doneTickets,
+        ...inProgressTickets,
+      ];
+      const uniqueTickets = allTickets.filter(
+        (ticket, index, self) =>
+          index === self.findIndex((t) => t.ticketId === ticket.ticketId)
+      );
+
+      // Extract all fix versions
+      const fixVersions = new Set<string>();
+      uniqueTickets.forEach((ticket) => {
+        ticket.fixVersions.forEach((version) => {
+          if (version) fixVersions.add(version);
+        });
+      });
+
+      setAvailableFixVersions(Array.from(fixVersions).sort());
+      setAvailableJiraTickets(uniqueTickets);
+    } catch (error) {
+      console.error('Error fetching JIRA tickets:', error);
+    } finally {
+      setIsLoadingJiraTickets(false);
+    }
+  };
 
   const handleInputChange = (
     e: React.ChangeEvent<
@@ -88,6 +157,81 @@ const EditRelease: React.FC = () => {
       ...prev,
       [name]: value,
     }));
+  };
+
+  const handleJiraTicketToggle = (ticket: JiraTicket) => {
+    setFormData((prev) => {
+      const ticketExists = prev.jiraTickets.some(
+        (t) => t.ticketId === ticket.ticketId
+      );
+
+      if (ticketExists) {
+        // Remove the ticket if it's already selected
+        return {
+          ...prev,
+          jiraTickets: prev.jiraTickets.filter(
+            (t) => t.ticketId !== ticket.ticketId
+          ),
+        };
+      } else {
+        // Add the ticket if it's not already selected
+        return {
+          ...prev,
+          jiraTickets: [...prev.jiraTickets, ticket],
+        };
+      }
+    });
+  };
+
+  const handleJiraTicketSearch = async (searchQuery: string) => {
+    if (!searchQuery.trim()) {
+      // If search is empty, just apply filters
+      applyFilters(availableJiraTickets);
+      return;
+    }
+
+    try {
+      setIsLoadingJiraTickets(true);
+      const response = await jiraService.getAllTickets();
+      const filteredTickets = response.filter(
+        (ticket) =>
+          ticket.ticketId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          ticket.summary.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      applyFilters(filteredTickets);
+    } catch (error) {
+      console.error('Error searching JIRA tickets:', error);
+    } finally {
+      setIsLoadingJiraTickets(false);
+    }
+  };
+
+  const applyFilters = (tickets: JiraTicket[]) => {
+    let filtered = [...tickets];
+
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((ticket) => ticket.status === statusFilter);
+    }
+
+    // Apply fix version filter
+    if (fixVersionFilter !== 'all') {
+      filtered = filtered.filter((ticket) =>
+        ticket.fixVersions.some((version) => version === fixVersionFilter)
+      );
+    }
+
+    setAvailableJiraTickets(filtered);
+  };
+
+  const handleStatusFilterChange = (status: string) => {
+    setStatusFilter(status);
+    applyFilters(availableJiraTickets);
+  };
+
+  const handleFixVersionFilterChange = (version: string) => {
+    setFixVersionFilter(version);
+    applyFilters(availableJiraTickets);
   };
 
   const handleAddPoint = () => {
@@ -151,6 +295,7 @@ const EditRelease: React.FC = () => {
           dockerHubLink: comp.dockerHubLink?.trim() || null,
           eDeliveryLink: comp.eDeliveryLink?.trim() || null,
         })),
+        jiraTickets: formData.jiraTickets.map((ticket) => ticket.ticketId),
       };
 
       await releaseService.updateRelease(id, updateData);
@@ -291,6 +436,170 @@ const EditRelease: React.FC = () => {
                     ></textarea>
                   </div>
 
+                  <div className="card bg-dark-secondary border-secondary mb-4">
+                    <div className="card-header border-secondary d-flex justify-content-between align-items-center">
+                      <h5 className="mb-0 text-light">JIRA Tickets</h5>
+                      <span className="badge bg-primary">
+                        {formData.jiraTickets.length} selected
+                      </span>
+                    </div>
+                    <div className="card-body">
+                      <div className="row mb-3">
+                        <div className="col-md-12">
+                          <input
+                            type="text"
+                            className="form-control bg-dark text-light border-secondary"
+                            placeholder="Search JIRA tickets..."
+                            onChange={(e) =>
+                              handleJiraTicketSearch(e.target.value)
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      <div className="row mb-3">
+                        <div className="col-md-6">
+                          <label className="form-label text-light">
+                            Status Filter
+                          </label>
+                          <select
+                            className="form-select bg-dark text-light border-secondary"
+                            value={statusFilter}
+                            onChange={(e) =>
+                              handleStatusFilterChange(e.target.value)
+                            }
+                          >
+                            <option value="all">All Statuses</option>
+                            <option value="Open">Open</option>
+                            <option value="Closed">Closed</option>
+                            <option value="Ready For Release">
+                              Ready For Release
+                            </option>
+                            <option value="Re-Open">Re-Open</option>
+                          </select>
+                        </div>
+                        <div className="col-md-6">
+                          <label className="form-label text-light">
+                            Fix Version
+                          </label>
+                          <select
+                            className="form-select bg-dark text-light border-secondary"
+                            value={fixVersionFilter}
+                            onChange={(e) =>
+                              handleFixVersionFilterChange(e.target.value)
+                            }
+                          >
+                            <option value="all">All Versions</option>
+                            {availableFixVersions.map((version) => (
+                              <option key={version} value={version}>
+                                {version}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {isLoadingJiraTickets ? (
+                        <div className="text-center py-3">
+                          <span
+                            className="spinner-border spinner-border-sm text-light me-2"
+                            role="status"
+                          ></span>
+                          <span className="text-light">Loading tickets...</span>
+                        </div>
+                      ) : (
+                        <div className="table-responsive">
+                          <table className="table table-dark table-hover table-bordered mb-0">
+                            <thead>
+                              <tr>
+                                <th
+                                  className="border-secondary"
+                                  style={{ width: '1%' }}
+                                ></th>
+                                <th className="border-secondary">Key</th>
+                                <th className="border-secondary">Summary</th>
+                                <th className="border-secondary">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {availableJiraTickets.length === 0 ? (
+                                <tr>
+                                  <td
+                                    colSpan={4}
+                                    className="text-center border-secondary"
+                                  >
+                                    No tickets available. Try another search or
+                                    fetch more tickets.
+                                  </td>
+                                </tr>
+                              ) : (
+                                availableJiraTickets.map((ticket) => {
+                                  const isSelected = formData.jiraTickets.some(
+                                    (t) => t.ticketId === ticket.ticketId
+                                  );
+                                  return (
+                                    <tr
+                                      key={ticket.ticketId}
+                                      className={`border-secondary ${
+                                        isSelected
+                                          ? 'bg-primary bg-opacity-25'
+                                          : ''
+                                      }`}
+                                      onClick={() =>
+                                        handleJiraTicketToggle(ticket)
+                                      }
+                                      style={{ cursor: 'pointer' }}
+                                    >
+                                      <td className="border-secondary text-center">
+                                        <input
+                                          type="checkbox"
+                                          className="form-check-input"
+                                          checked={isSelected}
+                                          onChange={() => {}} // Handle change is done in row click
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                      </td>
+                                      <td className="border-secondary">
+                                        <a
+                                          href={`https://appveen.atlassian.net/browse/${ticket.ticketId}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="text-decoration-none"
+                                        >
+                                          {ticket.ticketId}
+                                        </a>
+                                      </td>
+                                      <td className="border-secondary">
+                                        {ticket.summary}
+                                      </td>
+                                      <td className="border-secondary">
+                                        <span
+                                          className={`badge ${
+                                            ticket.status === 'Done'
+                                              ? 'bg-success'
+                                              : ticket.status ===
+                                                'Ready For Release'
+                                              ? 'bg-info'
+                                              : ticket.status === 'In Progress'
+                                              ? 'bg-warning'
+                                              : 'bg-secondary'
+                                          }`}
+                                        >
+                                          {ticket.status}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="mb-3">
                     <label className="form-label text-light d-flex justify-content-between">
                       <span>Additional Points</span>
@@ -333,6 +642,40 @@ const EditRelease: React.FC = () => {
             </div>
 
             <div className="col-md-4">
+              {formData.jiraTickets.length > 0 && (
+                <div className="card bg-dark border-secondary mb-4">
+                  <div className="card-header border-secondary">
+                    <h5 className="mb-0 text-light">Selected Tickets</h5>
+                  </div>
+                  <div className="card-body">
+                    <ul className="list-group">
+                      {formData.jiraTickets.map((ticket) => (
+                        <li
+                          key={ticket.ticketId}
+                          className="list-group-item bg-dark text-light border-secondary d-flex justify-content-between align-items-center"
+                        >
+                          <div>
+                            <strong>{ticket.ticketId}</strong>
+                            {ticket.summary && (
+                              <div className="small text-muted">
+                                {ticket.summary}
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-danger"
+                            onClick={() => handleJiraTicketToggle(ticket)}
+                          >
+                            <i className="bi bi-x"></i>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
               {formData.componentDeliveries.length > 0 && (
                 <div className="card bg-dark border-secondary mb-4">
                   <div className="card-header border-secondary">

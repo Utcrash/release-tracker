@@ -1,4 +1,3 @@
-import axios from 'axios';
 import api, { handleResponse } from './api';
 import { JiraTicket } from '../types';
 
@@ -6,7 +5,7 @@ import { JiraTicket } from '../types';
 const JIRA_API_VERSION = process.env.REACT_APP_JIRA_API_VERSION || '3';
 const JIRA_EMAIL = process.env.REACT_APP_JIRA_EMAIL;
 const JIRA_API_TOKEN = process.env.REACT_APP_JIRA_API_TOKEN;
-const JIRA_BASE_URL = process.env.REACT_APP_JIRA_BASE_URL;
+const JIRA_BASE_URL = process.env.REACT_APP_JIRA_BASE_URL || 'https://appveen.atlassian.net';
 
 // Debug log for environment variables and auth
 console.log('==== JIRA Service Configuration ====');
@@ -59,37 +58,15 @@ interface JiraProject {
     name: string;
 }
 
-// Helper function to verify auth header is present
-const verifyAuthHeader = () => {
-    if (!JIRA_EMAIL || !JIRA_API_TOKEN) {
-        throw new Error('Authentication not configured. Please check JIRA_EMAIL and JIRA_API_TOKEN environment variables.');
-    }
-};
-
-// Browser-safe base64 encoding
-const base64Encode = (str: string): string => {
-    return btoa(str);
-};
-
-// Get API base URL from environment variables
-const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
-
-// Create JIRA API client
-const jiraApi = axios.create({
-    baseURL: '/rest/api/3',
-    headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Basic ${base64Encode(`${JIRA_EMAIL}:${JIRA_API_TOKEN}`)}`,
-    }
-});
+// Create JIRA API client that uses our backend proxy
+const jiraApi = api;
+// The path will be prefixed with /jira/proxy/ to use our backend proxy
 
 export const jiraService = {
     // Get all accessible projects
     getProjects: async (): Promise<JiraProject[]> => {
         try {
-            verifyAuthHeader();
-            const response = await jiraApi.get<JiraProject[]>('/project');
+            const response = await jiraApi.get<JiraProject[]>('/jira/proxy/project');
             if (!response.data || !Array.isArray(response.data)) {
                 throw new Error('Invalid response format from JIRA API');
             }
@@ -102,8 +79,7 @@ export const jiraService = {
 
     getTicketsByStatus: async (projectKey: string = 'DNIO', status: string): Promise<JiraTicket[]> => {
         try {
-            verifyAuthHeader();
-            const response = await jiraApi.get<JiraApiResponse>('/search', {
+            const response = await jiraApi.get<JiraApiResponse>('/jira/proxy/search', {
                 params: {
                     jql: `project=${projectKey} AND status="${status}"`,
                     maxResults: 50,
@@ -161,9 +137,8 @@ export const jiraService = {
     // Get all tickets regardless of status
     getAllTickets: async (projectKey: string = 'DNIO'): Promise<JiraTicket[]> => {
         try {
-            verifyAuthHeader();
             const jql = `project = ${projectKey} ORDER BY priority DESC, created DESC`;
-            const response = await jiraApi.get<JiraApiResponse>('/search', {
+            const response = await jiraApi.get<JiraApiResponse>('/jira/proxy/search', {
                 params: {
                     jql,
                     fields: [
@@ -198,11 +173,16 @@ export const jiraService = {
     },
 
     // Get tickets for a specific component from our backend
-    getComponentTickets: async (componentId: string, componentSlug?: string): Promise<JiraTicket[]> => {
+    getComponentTickets: async (componentId?: string): Promise<JiraTicket[]> => {
         try {
-            const identifier = componentSlug || componentId;
-            const response = await api.get<JiraTicket[]>(`/jira/component/${identifier}`);
-            return handleResponse(response);
+            if (componentId) {
+                // If componentId is provided, get tickets for that component
+                const response = await api.get<JiraTicket[]>(`/jira/component/${componentId}`);
+                return handleResponse(response);
+            } else {
+                // Otherwise, get all tickets
+                return jiraService.getTicketsFromBackend();
+            }
         } catch (error) {
             console.error('Error fetching component tickets:', error);
             throw error;
@@ -210,13 +190,30 @@ export const jiraService = {
     },
 
     // This will update our backend with the fetched tickets
-    syncReadyForReleaseTickets: async (componentId: string, projectKey: string, componentSlug?: string): Promise<void> => {
+    syncReadyForReleaseTickets: async (componentId?: string, projectKey: string = 'DNIO'): Promise<void> => {
         try {
-            const identifier = componentSlug || componentId;
             const tickets = await jiraService.getReadyForReleaseTickets(projectKey);
-            await api.post(`/jira/sync/${identifier}`, { tickets });
+
+            if (componentId) {
+                // If componentId is provided, sync tickets for that component
+                await api.post(`/jira/sync/${componentId}`, { tickets });
+            } else {
+                // Otherwise, sync tickets globally
+                await api.post('/jira/sync', { tickets });
+            }
         } catch (error) {
             console.error('Error syncing JIRA tickets:', error);
+            throw error;
+        }
+    },
+
+    // Get all tickets from our backend
+    getTicketsFromBackend: async (): Promise<JiraTicket[]> => {
+        try {
+            const response = await api.get<JiraTicket[]>('/jira/tickets');
+            return handleResponse(response);
+        } catch (error) {
+            console.error('Error fetching tickets from backend:', error);
             throw error;
         }
     }
