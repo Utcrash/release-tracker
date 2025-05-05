@@ -17,8 +17,12 @@ import './styles/darkTheme.css';
 import './App.css';
 
 function App() {
-  // Get base path from environment variables or use empty string as default
-  const basePath = process.env.REACT_APP_BASE_PATH || '';
+  // Get base path from environment variables, package.json homepage, or use /release-tracker as default
+  const basePath =
+    process.env.REACT_APP_BASE_PATH ||
+    (process.env.PUBLIC_URL ? process.env.PUBLIC_URL : '/release-tracker');
+
+  console.log('React app using base path:', basePath);
 
   useEffect(() => {
     // Apply dark theme to body

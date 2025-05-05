@@ -1,8 +1,9 @@
 {
-  "name": "release",
+  "name": "release-tracker",
   "version": "0.1.0",
   "private": true,
   "proxy": "http://localhost:3001",
+  "homepage": "/release-tracker",
   "dependencies": {
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
@@ -33,7 +34,9 @@
     "start-backend": "node backend/server.js",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "docker-build": "docker build -t release-tracker .",
+    "docker-run": "docker run -p 3001:3001 -e MONGODB_URI=mongodb://host.docker.internal:27017/dnio-release-tracker release-tracker"
   },
   "eslintConfig": {
     "extends": [

@@ -8,13 +8,13 @@ const JIRA_API_TOKEN = process.env.REACT_APP_JIRA_API_TOKEN;
 const JIRA_BASE_URL = process.env.REACT_APP_JIRA_BASE_URL || 'https://appveen.atlassian.net';
 
 // Debug log for environment variables and auth
-console.log('==== JIRA Service Configuration ====');
-console.log('Base URL:', JIRA_BASE_URL);
-console.log('API Version:', JIRA_API_VERSION);
-console.log('Email:', JIRA_EMAIL);
-console.log('Token Present:', !!JIRA_API_TOKEN);
-console.log('Token Length:', JIRA_API_TOKEN?.length);
-console.log('Auth String:', `${JIRA_EMAIL}:${JIRA_API_TOKEN?.substring(0, 5)}...`);
+// console.log('==== JIRA Service Configuration ====');
+// console.log('Base URL:', JIRA_BASE_URL);
+// console.log('API Version:', JIRA_API_VERSION);
+// console.log('Email:', JIRA_EMAIL);
+// console.log('Token Present:', !!JIRA_API_TOKEN);
+// console.log('Token Length:', JIRA_API_TOKEN?.length);
+// console.log('Auth String:', `${JIRA_EMAIL}:${JIRA_API_TOKEN?.substring(0, 5)}...`);
 console.log('================================');
 
 if (!JIRA_EMAIL || !JIRA_API_TOKEN) {

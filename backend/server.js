@@ -1,6 +1,14 @@
 // Load environment variables from .env file
 require('dotenv').config({ path: require('path').resolve(__dirname, '.env') });
 
+// Debug environment variables
+console.log('==== Backend Environment Variables ====');
+console.log('JIRA_BASE_URL:', process.env.JIRA_BASE_URL);
+console.log('JIRA_EMAIL:', process.env.JIRA_EMAIL);
+console.log('JIRA_API_TOKEN exists:', !!process.env.JIRA_API_TOKEN);
+console.log('MONGODB_URI:', process.env.MONGODB_URI);
+console.log('BASE_PATH:', process.env.BASE_PATH);
+console.log('====================================');
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -9,7 +17,7 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const BASE_PATH = process.env.REACT_APP_BASE_PATH || '';
+const BASE_PATH = process.env.BASE_PATH || '/release-tracker';
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/dnio-release-tracker';
 
 // Middleware
@@ -72,6 +80,11 @@ app.get(`${BASE_PATH}/`, (req, res) => {
     }
 });
 
+// Add a redirect from root to BASE_PATH
+app.get('/', (req, res) => {
+    res.redirect(BASE_PATH);
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
@@ -81,5 +94,5 @@ app.use((err, req, res, next) => {
 // Start server
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-    console.log(`Application available at ${BASE_PATH || '/'}`);
+    console.log(`Application available at ${BASE_PATH}`);
 }); 

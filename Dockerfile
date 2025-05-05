@@ -1,45 +1,45 @@
-# Stage 1: Build React application
-FROM node:20-alpine as build
+# Use Node.js as the base image
+FROM node:18-alpine AS build
 
+# Set working directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json
+# Copy package files and install dependencies
 COPY package*.json ./
+RUN npm install
 
-# Install dependencies
-RUN npm ci
-
-# Copy source code
+# Copy the rest of the application code
 COPY . .
 
-# Set environment variables for build
-ARG REACT_APP_API_URL
-ARG REACT_APP_BASE_PATH=/release
-ENV REACT_APP_API_URL=$REACT_APP_API_URL
-ENV REACT_APP_BASE_PATH=$REACT_APP_BASE_PATH
-ENV PUBLIC_URL=/release
-
-# Build the application
+# Build the React app
 RUN npm run build
 
-# Stage 2: Set up the production environment
-FROM node:20-alpine
+# Production stage
+FROM node:18-alpine
 
+# Set working directory
 WORKDIR /app
 
-# Copy build artifacts from the build stage
+# Copy built React app and backend files
 COPY --from=build /app/build ./build
 COPY --from=build /app/backend ./backend
+COPY --from=build /app/package*.json ./
 
-# Install production dependencies for backend
-COPY package*.json ./
-RUN npm ci --only=production
 
-# Copy .env file if it exists
-COPY .env* ./
+# Copy startup script
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 # Expose port
 EXPOSE 3001
 
-# Start the application
-CMD ["node", "backend/server.js"] 
+# Set environment variables with defaults
+ENV PORT=3001 \
+    NODE_ENV=production \
+    BASE_PATH=/release-tracker \
+    MONGODB_URI=mongodb://localhost:27017/dnio-release-tracker \
+    JIRA_BASE_URL=https://appveen.atlassian.net \
+    JIRA_API_VERSION=3
+
+# Use the entrypoint script to start the application
+ENTRYPOINT ["/docker-entrypoint.sh"] 

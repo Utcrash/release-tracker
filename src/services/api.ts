@@ -13,13 +13,13 @@ const isUsingProxy = BACKEND_URL === 'https://appveen.atlassian.net';
 const baseURL = isUsingProxy ? API_URL : FULL_API_URL;
 
 // Log the configuration to help with debugging
-console.log('API Configuration:', {
-    BACKEND_URL,
-    API_URL,
-    FULL_API_URL,
-    isUsingProxy,
-    baseURL
-});
+// console.log('API Configuration:', {
+//     BACKEND_URL,
+//     API_URL,
+//     FULL_API_URL,
+//     isUsingProxy,
+//     baseURL
+// });
 
 const api = axios.create({
     baseURL,
