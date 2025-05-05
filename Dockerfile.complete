@@ -1,0 +1,60 @@
+FROM node:18 as builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy all source files
+COPY . .
+
+# Build the frontend
+RUN npm run build
+
+# Create a production image
+FROM node:18-slim
+
+WORKDIR /app
+
+# Copy package files and install production dependencies
+COPY package*.json ./
+RUN npm install --only=production
+
+# Copy backend code
+COPY --from=builder /app/backend ./backend
+
+# Copy built frontend files
+COPY --from=builder /app/build ./build
+
+# Copy the nginx setup script
+COPY setup-nginx.sh /app/setup-nginx.sh
+RUN chmod +x /app/setup-nginx.sh
+
+# Expose the backend port
+EXPOSE 3001
+
+# Set default environment variables
+ENV PORT=3001 \
+    NODE_ENV=production \
+    BASE_PATH=/release-tracker \
+    MONGODB_URI=mongodb://mongodb:27017/dnio-release-tracker \
+    REACT_APP_JIRA_BASE_URL=https://appveen.atlassian.net \
+    REACT_APP_JIRA_API_VERSION=3
+
+# Create an entrypoint script
+RUN echo '#!/bin/bash\n\
+    # Run nginx setup if NGINX_DIR is provided\n\
+    if [ -n "$NGINX_DIR" ]; then\n\
+    echo "Setting up Nginx files in $NGINX_DIR"\n\
+    /app/setup-nginx.sh "$NGINX_DIR"\n\
+    fi\n\
+    \n\
+    # Start the backend\n\
+    exec node backend/server.js\n\
+    ' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+
+# Set the entrypoint
+ENTRYPOINT ["/app/entrypoint.sh"] 

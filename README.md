@@ -1,165 +1,84 @@
 # Release Tracker
 
-A web application for tracking software releases and integrating with JIRA.
+A React/Node.js application for tracking releases with JIRA integration.
 
-## Security Notice
+## Deployment with Docker
+
+This application is designed to be deployed using Docker with Nginx for serving the frontend.
+
+### Quick Deployment Using Pre-built Image
+
+The easiest way to deploy is using the pre-built Docker image from Docker Hub:
+
+```bash
+# Pull the image from Docker Hub
+docker pull utcrash/release-tracker
+
+# Run the container (replace with your JIRA token)
+docker run -d -p 3001:3001 \
+  -e REACT_APP_JIRA_API_TOKEN="YOUR_JIRA_TOKEN" \
+  -e REACT_APP_JIRA_EMAIL="your-email@example.com" \
+  --network="docker-services_dniomp" \
+  --name release-tracker \
+  utcrash/release-tracker
+
+# Copy the Nginx configuration file from the container
+docker cp release-tracker:/app/release-tracker-nginx.conf ./
+
+# Add the configuration to your Nginx server block and reload Nginx
+sudo systemctl reload nginx
+```
+
+### Building Your Own Image
+
+If you want to build your own image from source:
+
+```bash
+# 1. Build the Docker image
+docker build -t release-tracker .
+
+# 2. Run the container (replace with your JIRA token)
+docker run -d -p 3001:3001 \
+  -e REACT_APP_JIRA_API_TOKEN="YOUR_JIRA_TOKEN" \
+  -e REACT_APP_JIRA_EMAIL="your-email@example.com" \
+  --network="docker-services_dniomp" \
+  --name release-tracker \
+  release-tracker
+
+# 3. Copy the Nginx configuration file from the container
+docker cp release-tracker:/app/release-tracker-nginx.conf ./
+
+# 4. Add the configuration to your Nginx server block
+# 5. Reload Nginx
+sudo systemctl reload nginx
+```
+
+### Environment Variables
+
+The application uses the following environment variables:
+
+| Variable                   | Description                          | Default                                      |
+| -------------------------- | ------------------------------------ | -------------------------------------------- |
+| PORT                       | Port the server runs on              | 3001                                         |
+| NODE_ENV                   | Environment (development/production) | production                                   |
+| BASE_PATH                  | Base path for the application        | /release-tracker                             |
+| MONGODB_URI                | MongoDB connection string            | mongodb://mongodb:27017/dnio-release-tracker |
+| REACT_APP_JIRA_BASE_URL    | JIRA instance URL                    | https://appveen.atlassian.net                |
+| REACT_APP_JIRA_API_VERSION | JIRA API version                     | 3                                            |
+| REACT_APP_JIRA_EMAIL       | JIRA account email                   | _Must be provided_                           |
+| REACT_APP_JIRA_API_TOKEN   | JIRA API token                       | _Must be provided_                           |
+
+### Nginx Configuration
+
+The Docker container automatically generates an Nginx configuration file that includes:
+
+1. Frontend serving from `/var/www/html/release-tracker`
+2. API proxy to the Node.js backend
+3. Special handling for browser requests that go directly to localhost:3001
+
+### Security Notice
 
 **IMPORTANT:** This application requires JIRA credentials to function properly. For security purposes:
 
 1. **NEVER commit your actual JIRA credentials to the repository**
-2. Always use environment variables or secure Docker secrets in production
-3. Use the provided `.env.example` files as templates, but create your own `.env` files with your actual credentials
-
-## Environment Setup
-
-This application uses a single `.env` file in the root directory for both frontend and backend configurations. The backend code reads the `REACT_APP_` prefixed variables and maps them to their non-prefixed counterparts.
-
-1. Copy `.env.example` to `.env`:
-
-   ```
-   cp .env.example .env
-   ```
-
-2. Edit the `.env` file with your JIRA credentials and other configuration.
-
-3. No need for a separate backend/.env file - the backend will read from the root .env.
-
-## Features
-
-- Track software releases and their components
-- Integrate with JIRA to fetch and display ticket information
-- Display ticket status and fix versions
-- Manage component deliveries with links to artifacts
-
-## Deployment Options
-
-### Using Docker Compose (Recommended)
-
-1. Clone the repository:
-
-   ```
-   git clone https://github.com/yourusername/release-tracker.git
-   cd release-tracker
-   ```
-
-2. Configure environment variables by creating a `.env` file in the root directory:
-
-   ```
-   JIRA_BASE_URL=https://your-jira-instance.atlassian.net
-   JIRA_EMAIL=your.email@example.com
-   JIRA_API_TOKEN=your_jira_api_token
-   ```
-
-3. Build and start the application:
-
-   ```
-   docker-compose up -d
-   ```
-
-4. Access the application at `http://your-server:3001/release-tracker`
-
-### Using Docker
-
-1. Build the Docker image:
-
-   ```
-   docker build -t release-tracker .
-   ```
-
-2. Run the container with environment variables:
-
-   ```
-   docker run -d -p 3001:3001 \
-     -e MONGODB_URI=mongodb://your-mongodb-server:27017/release-tracker \
-     -e JIRA_BASE_URL=https://your-jira-instance.atlassian.net \
-     -e JIRA_EMAIL=your.email@example.com \
-     -e JIRA_API_TOKEN=your_jira_api_token \
-     release-tracker
-   ```
-
-3. Access the application at `http://your-server:3001/release-tracker`
-
-### Manual Installation
-
-1. Clone the repository:
-
-   ```
-   git clone https://github.com/yourusername/release-tracker.git
-   cd release-tracker
-   ```
-
-2. Install dependencies:
-
-   ```
-   npm install
-   ```
-
-3. Create a backend/.env file:
-
-   ```
-   # JIRA Configuration
-   JIRA_BASE_URL=https://your-jira-instance.atlassian.net
-   JIRA_API_VERSION=3
-   JIRA_EMAIL=your.email@example.com
-   JIRA_API_TOKEN=your_jira_api_token
-
-   # MongoDB Connection
-   MONGODB_URI=mongodb://localhost:27017/dnio-release-tracker
-
-   # Application Configuration
-   BASE_PATH=/release-tracker
-   ```
-
-4. Build the React application:
-
-   ```
-   npm run build
-   ```
-
-5. Start the server:
-
-   ```
-   npm run start-backend
-   ```
-
-6. Access the application at `http://your-server:3001/release-tracker`
-
-## Environment Variables
-
-| Variable           | Description                                    | Default Value                                    |
-| ------------------ | ---------------------------------------------- | ------------------------------------------------ |
-| `PORT`             | The port on which the server runs              | `3001`                                           |
-| `BASE_PATH`        | Base path where the application will be hosted | `/release-tracker`                               |
-| `MONGODB_URI`      | MongoDB connection string                      | `mongodb://localhost:27017/dnio-release-tracker` |
-| `JIRA_BASE_URL`    | URL of your JIRA instance                      | `https://appveen.atlassian.net`                  |
-| `JIRA_API_VERSION` | JIRA API version                               | `3`                                              |
-| `JIRA_EMAIL`       | Email used for JIRA authentication             |                                                  |
-| `JIRA_API_TOKEN`   | JIRA API token for authentication              |                                                  |
-
-## Development
-
-1. Clone the repository and install dependencies:
-
-   ```
-   git clone https://github.com/yourusername/release-tracker.git
-   cd release-tracker
-   npm install
-   ```
-
-2. Start the backend:
-
-   ```
-   npm run start-backend
-   ```
-
-3. In another terminal, start the frontend development server:
-
-   ```
-   npm start
-   ```
-
-4. The frontend will be available at `http://localhost:3000`
-
-## License
-
-This project is licensed under the MIT License.
+2. Always use environment variables when running the container

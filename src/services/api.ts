@@ -2,18 +2,22 @@ import axios from 'axios';
 import { ApiResponse } from '../types/api';
 
 // Get environment variables with fallbacks
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001';
+// Use relative URLs by default when deployed to production
+const isProduction = process.env.NODE_ENV === 'production';
+const BACKEND_URL = isProduction ? '' : (process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001');
 const API_URL = process.env.REACT_APP_API_URL || '/release-tracker/api';
 
-// Create the full API URL
-const FULL_API_URL = `${BACKEND_URL}${API_URL}`;
+// Create the full API URL - for production, use relative URLs
+const FULL_API_URL = isProduction ? API_URL : `${BACKEND_URL}${API_URL}`;
 
 // When using the proxy we'll use the relative path, otherwise use the full URL
 const isUsingProxy = BACKEND_URL === 'https://appveen.atlassian.net';
-const baseURL = isUsingProxy ? API_URL : FULL_API_URL;
+const baseURL = isProduction || isUsingProxy ? API_URL : FULL_API_URL;
 
 // Log the configuration to help with debugging
 console.log('API Configuration:', {
+    NODE_ENV: process.env.NODE_ENV,
+    isProduction,
     BACKEND_URL,
     API_URL,
     FULL_API_URL,
