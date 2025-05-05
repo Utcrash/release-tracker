@@ -1,5 +1,11 @@
-// Load environment variables from .env file
-require('dotenv').config({ path: require('path').resolve(__dirname, '.env') });
+// Load environment variables from root .env file
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
+
+// Map REACT_APP_ prefixed variables to backend variables
+process.env.JIRA_BASE_URL = process.env.REACT_APP_JIRA_BASE_URL;
+process.env.JIRA_API_VERSION = process.env.REACT_APP_JIRA_API_VERSION;
+process.env.JIRA_EMAIL = process.env.REACT_APP_JIRA_EMAIL;
+process.env.JIRA_API_TOKEN = process.env.REACT_APP_JIRA_API_TOKEN;
 
 // Debug environment variables
 console.log('==== Backend Environment Variables ====');
@@ -17,6 +23,7 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+// Always use /release-tracker consistently
 const BASE_PATH = process.env.BASE_PATH || '/release-tracker';
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/dnio-release-tracker';
 
@@ -56,7 +63,7 @@ if (process.env.NODE_ENV !== 'production') {
     mongoose.set('debug', true);
 }
 
-// API Routes - Adjust paths to include BASE_PATH for API endpoints
+// API Routes - Include BASE_PATH for API endpoints
 const apiBasePath = `${BASE_PATH}/api`;
 app.use(`${apiBasePath}/jira`, require('./routes/jiraRoutes'));
 app.use(`${apiBasePath}/releases`, require('./routes/releases'));
@@ -95,4 +102,5 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Application available at ${BASE_PATH}`);
+    console.log(`API available at ${apiBasePath}`);
 }); 

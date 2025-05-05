@@ -32,6 +32,7 @@
   "scripts": {
     "start": "react-scripts --max-http-header-size=16384 start",
     "start-backend": "node backend/server.js",
+    "start:dev": "concurrently \"npm run start\" \"npm run start-backend\"",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",

@@ -2,6 +2,28 @@
 
 A web application for tracking software releases and integrating with JIRA.
 
+## Security Notice
+
+**IMPORTANT:** This application requires JIRA credentials to function properly. For security purposes:
+
+1. **NEVER commit your actual JIRA credentials to the repository**
+2. Always use environment variables or secure Docker secrets in production
+3. Use the provided `.env.example` files as templates, but create your own `.env` files with your actual credentials
+
+## Environment Setup
+
+This application uses a single `.env` file in the root directory for both frontend and backend configurations. The backend code reads the `REACT_APP_` prefixed variables and maps them to their non-prefixed counterparts.
+
+1. Copy `.env.example` to `.env`:
+
+   ```
+   cp .env.example .env
+   ```
+
+2. Edit the `.env` file with your JIRA credentials and other configuration.
+
+3. No need for a separate backend/.env file - the backend will read from the root .env.
+
 ## Features
 
 - Track software releases and their components

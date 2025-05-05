@@ -3,24 +3,29 @@ const router = express.Router();
 const JiraTicket = require('../models/JiraTicket');
 const axios = require('axios');
 
-// JIRA API Configuration with fallbacks
+// JIRA API Configuration with safe fallbacks (no credentials)
 const JIRA_BASE_URL = process.env.JIRA_BASE_URL || 'https://appveen.atlassian.net';
 const JIRA_API_VERSION = process.env.JIRA_API_VERSION || '3';
-const JIRA_EMAIL = process.env.JIRA_EMAIL || 'utkarsh@datanimbus.com';
-const JIRA_API_TOKEN = process.env.JIRA_API_TOKEN || 'ATATT3xFfGF0EgA3uaFJjv_L5ttjsizA82LfdVkkRYv_-1ufKH8M-cZxrisT15FFbtuBWAaRwTsGMxxaDlzlmlJ6zcOrMqjp3aPXsAtrmf1qwfTZds8SgZf28bEqagV2xDln8jtOjaB6ZrJm2ApHnVXcjYqaWfg6eT68-uHoTzuf1H6p_nzOwV4=F09069CA';
+const JIRA_EMAIL = process.env.JIRA_EMAIL;
+const JIRA_API_TOKEN = process.env.JIRA_API_TOKEN;
 
 console.log('=== JIRA Configuration in jiraRoutes ===');
 console.log('JIRA_BASE_URL:', JIRA_BASE_URL);
 console.log('JIRA_API_VERSION:', JIRA_API_VERSION);
-console.log('JIRA_EMAIL:', JIRA_EMAIL);
-console.log('Has JIRA_API_TOKEN:', !!JIRA_API_TOKEN);
+console.log('JIRA_EMAIL set:', !!JIRA_EMAIL);
+console.log('JIRA_API_TOKEN set:', !!JIRA_API_TOKEN);
 console.log('======================================');
+
+// Verify that credentials are provided
+if (!JIRA_EMAIL || !JIRA_API_TOKEN) {
+    console.warn('WARNING: Missing JIRA credentials. JIRA integration may not work properly.');
+}
 
 // Create JIRA API client
 const jiraClient = axios.create({
     headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Basic ${Buffer.from(`${JIRA_EMAIL}:${JIRA_API_TOKEN}`).toString('base64')}`,
+        'Authorization': `Basic ${Buffer.from(`${JIRA_EMAIL || ''}:${JIRA_API_TOKEN || ''}`).toString('base64')}`,
     }
 });
 
