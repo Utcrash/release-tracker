@@ -23,7 +23,8 @@ ENV PORT=3001 \
     BASE_PATH=/release-tracker \
     MONGODB_URI=mongodb://mongodb:27017/dnio-release-tracker \
     REACT_APP_JIRA_BASE_URL=https://appveen.atlassian.net \
-    REACT_APP_JIRA_API_VERSION=3
+    REACT_APP_JIRA_API_VERSION=3 \
+    REACT_APP_JIRA_PROJECT_KEY=DNIO
 
 # Create setup script
 RUN echo '#!/bin/bash\n\

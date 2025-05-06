@@ -109,7 +109,10 @@ const JiraTickets: React.FC = () => {
   const fetchTickets = async () => {
     try {
       setLoading(true);
-      const data = await jiraService.getTicketsByStatuses('DNIO', statusFilter);
+      const data = await jiraService.getTicketsByStatuses(
+        process.env.REACT_APP_JIRA_PROJECT_KEY,
+        statusFilter
+      );
       setTickets(data);
 
       // Extract unique values for filters

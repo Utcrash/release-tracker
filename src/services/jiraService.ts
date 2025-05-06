@@ -6,6 +6,7 @@ const JIRA_API_VERSION = process.env.REACT_APP_JIRA_API_VERSION || '3';
 const JIRA_EMAIL = process.env.REACT_APP_JIRA_EMAIL;
 const JIRA_API_TOKEN = process.env.REACT_APP_JIRA_API_TOKEN;
 const JIRA_BASE_URL = process.env.REACT_APP_JIRA_BASE_URL || 'https://appveen.atlassian.net';
+const DEFAULT_PROJECT_KEY = process.env.REACT_APP_JIRA_PROJECT_KEY || 'DNIO';
 
 // Debug log for environment variables and auth
 // console.log('==== JIRA Service Configuration ====');
@@ -93,7 +94,7 @@ export const jiraService = {
         }
     },
 
-    getTicketsByStatuses: async (projectKey: string = 'DNIO', statuses: string[]): Promise<JiraTicket[]> => {
+    getTicketsByStatuses: async (projectKey: string = DEFAULT_PROJECT_KEY, statuses: string[]): Promise<JiraTicket[]> => {
         try {
             // If no statuses provided, empty array, or contains 'all', fetch all tickets
             const jql = !statuses.length || statuses.includes('all')
@@ -138,7 +139,7 @@ export const jiraService = {
     // Update fetchJiraTickets to use the new method
     fetchJiraTickets: async (statuses: string[] = ['Ready For Release', 'Done', 'In Progress']): Promise<JiraTicket[]> => {
         try {
-            const tickets = await jiraService.getTicketsByStatuses('DNIO', statuses);
+            const tickets = await jiraService.getTicketsByStatuses(DEFAULT_PROJECT_KEY, statuses);
             return tickets;
         } catch (error) {
             console.error('Error fetching JIRA tickets:', error);
@@ -147,27 +148,27 @@ export const jiraService = {
     },
 
     // Get Ready for Release tickets
-    getReadyForReleaseTickets: async (projectKey: string = 'DNIO'): Promise<JiraTicket[]> => {
+    getReadyForReleaseTickets: async (projectKey: string = DEFAULT_PROJECT_KEY): Promise<JiraTicket[]> => {
         return jiraService.getTicketsByStatuses(projectKey, ['Ready For Release']);
     },
 
     // Get In Progress tickets
-    getInProgressTickets: async (projectKey: string = 'DNIO'): Promise<JiraTicket[]> => {
+    getInProgressTickets: async (projectKey: string = DEFAULT_PROJECT_KEY): Promise<JiraTicket[]> => {
         return jiraService.getTicketsByStatuses(projectKey, ['In Progress']);
     },
 
     // Get Done tickets
-    getDoneTickets: async (projectKey: string = 'DNIO'): Promise<JiraTicket[]> => {
+    getDoneTickets: async (projectKey: string = DEFAULT_PROJECT_KEY): Promise<JiraTicket[]> => {
         return jiraService.getTicketsByStatuses(projectKey, ['Done']);
     },
 
     // Get To Do tickets
-    getToDoTickets: async (projectKey: string = 'DNIO'): Promise<JiraTicket[]> => {
+    getToDoTickets: async (projectKey: string = DEFAULT_PROJECT_KEY): Promise<JiraTicket[]> => {
         return jiraService.getTicketsByStatuses(projectKey, ['To Do']);
     },
 
     // Get all tickets regardless of status
-    getAllTickets: async (projectKey: string = 'DNIO'): Promise<JiraTicket[]> => {
+    getAllTickets: async (projectKey: string = DEFAULT_PROJECT_KEY): Promise<JiraTicket[]> => {
         try {
             const jql = `project = ${projectKey} ORDER BY priority DESC, created DESC`;
             const response = await jiraApi.get<JiraApiResponse>('/jira/proxy/search', {
@@ -233,7 +234,7 @@ export const jiraService = {
     },
 
     // Get all JIRA statuses
-    getAllStatuses: async (projectKey: string = 'DNIO'): Promise<string[]> => {
+    getAllStatuses: async (projectKey: string = DEFAULT_PROJECT_KEY): Promise<string[]> => {
         try {
             const response = await jiraApi.get<JiraStatusResponse[]>(`/jira/proxy/project/${projectKey}/statuses`);
             const statuses = response.data
@@ -248,7 +249,7 @@ export const jiraService = {
     },
 
     // Get all available JIRA statuses
-    getJiraStatuses: async (projectKey: string = 'DNIO'): Promise<Array<{ id: string; name: string; category: string }>> => {
+    getJiraStatuses: async (projectKey: string = DEFAULT_PROJECT_KEY): Promise<Array<{ id: string; name: string; category: string }>> => {
         try {
             const response = await jiraApi.get<JiraStatusResponse[]>(`/jira/proxy/project/${projectKey}/statuses`);
 

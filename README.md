@@ -57,16 +57,16 @@ sudo systemctl reload nginx
 
 The application uses the following environment variables:
 
-| Variable                   | Description                          | Default                                      |
-| -------------------------- | ------------------------------------ | -------------------------------------------- |
-| PORT                       | Port the server runs on              | 3001                                         |
-| NODE_ENV                   | Environment (development/production) | production                                   |
-| BASE_PATH                  | Base path for the application        | /release-tracker                             |
-| MONGODB_URI                | MongoDB connection string            | mongodb://mongodb:27017/dnio-release-tracker |
-| REACT_APP_JIRA_BASE_URL    | JIRA instance URL                    | https://appveen.atlassian.net                |
-| REACT_APP_JIRA_API_VERSION | JIRA API version                     | 3                                            |
-| REACT_APP_JIRA_EMAIL       | JIRA account email                   | _Must be provided_                           |
-| REACT_APP_JIRA_API_TOKEN   | JIRA API token                       | _Must be provided_                           |
+| Variable                   | Description               | Default Value                                |
+| -------------------------- | ------------------------- | -------------------------------------------- |
+| REACT_APP_API_BASE_URL     | Backend API URL           | http://localhost:3001                        |
+| REACT_APP_JIRA_BASE_URL    | JIRA API Base URL         | https://your-domain.atlassian.net            |
+| REACT_APP_JIRA_EMAIL       | JIRA Account Email        | your-email@example.com                       |
+| REACT_APP_JIRA_API_TOKEN   | JIRA API Token            | your-jira-api-token                          |
+| MONGODB_URI                | MongoDB connection string | mongodb://mongodb:27017/dnio-release-tracker |
+| REACT_APP_JIRA_PROJECT_KEY | JIRA Project Key          | DNIO                                         |
+
+Make sure to create a `.env` file in the root directory with these variables before running the application. You can use the `.env.example` file as a template.
 
 ### Nginx Configuration
 
