@@ -14,6 +14,12 @@ interface NewReleaseFormData {
   componentDeliveries: ComponentDelivery[];
 }
 
+interface JiraStatus {
+  id: string;
+  name: string;
+  category: string;
+}
+
 const NewRelease: React.FC = () => {
   const navigate = useNavigate();
   const [tickets, setTickets] = useState<JiraTicket[]>([]);
@@ -23,7 +29,11 @@ const NewRelease: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [fixVersionFilter, setFixVersionFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string[]>([
+    'Ready For Release',
+  ]);
+  const [availableStatuses, setAvailableStatuses] = useState<JiraStatus[]>([]);
+  const [fixVersionFilter, setFixVersionFilter] = useState<string[]>(['all']);
   const [uniqueFixVersions, setUniqueFixVersions] = useState<string[]>([]);
   const [formData, setFormData] = useState<NewReleaseFormData>({
     version: '',
@@ -33,35 +43,50 @@ const NewRelease: React.FC = () => {
     componentDeliveries: [],
   });
 
-  const fetchTickets = async () => {
-    try {
-      setLoading(true);
-      const data = await jiraService.getReadyForReleaseTickets('DNIO');
-      setTickets(data);
+  useEffect(() => {
+    const fetchStatuses = async () => {
+      try {
+        const statuses = await jiraService.getJiraStatuses();
+        setAvailableStatuses(statuses);
+      } catch (error) {
+        console.error('Error fetching JIRA statuses:', error);
+      }
+    };
 
-      // Extract unique fix versions
-      const versions = new Set<string>();
-      data.forEach((ticket) => {
-        ticket.fixVersions.forEach((version) => {
-          versions.add(version);
-        });
-      });
-      setUniqueFixVersions(Array.from(versions));
-
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching tickets:', err);
-      setError(
-        'Failed to fetch tickets. Please check your JIRA configuration.'
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+    fetchStatuses();
+  }, []);
 
   useEffect(() => {
+    const fetchTickets = async () => {
+      try {
+        setLoading(true);
+        // If 'all' is selected, fetch all tickets
+        const data = await jiraService.getTicketsByStatuses(
+          'DNIO',
+          statusFilter.includes('all') ? [] : statusFilter
+        );
+        setTickets(data);
+
+        // Extract unique fix versions
+        const versions = new Set<string>();
+        data.forEach((ticket: JiraTicket) => {
+          ticket.fixVersions.forEach((version: string) => {
+            versions.add(version);
+          });
+        });
+
+        setUniqueFixVersions(Array.from(versions).sort());
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching tickets:', err);
+        setError('Failed to fetch tickets. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchTickets();
-  }, []);
+  }, [statusFilter]);
 
   const handleTicketSelect = (ticketId: string) => {
     setSelectedTickets((prev) => {
@@ -226,6 +251,22 @@ const NewRelease: React.FC = () => {
     }
   };
 
+  const handleFilterChange = (
+    event: React.ChangeEvent<HTMLSelectElement>,
+    setFilter: React.Dispatch<React.SetStateAction<string[]>>
+  ) => {
+    const selectedOptions = Array.from(
+      event.target.selectedOptions,
+      (option) => option.value
+    );
+    // If 'all' is selected, clear other selections
+    if (selectedOptions.includes('all')) {
+      setFilter(['all']);
+    } else {
+      setFilter(selectedOptions);
+    }
+  };
+
   const filteredTickets = tickets.filter((ticket) => {
     const matchesSearch =
       ticket.summary.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -233,10 +274,8 @@ const NewRelease: React.FC = () => {
       ticket.assignee.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesVersion =
-      fixVersionFilter === '' ||
-      ticket.fixVersions.some((version) =>
-        version.toLowerCase().includes(fixVersionFilter.toLowerCase())
-      );
+      fixVersionFilter.includes('all') ||
+      ticket.fixVersions.some((v) => fixVersionFilter.includes(v));
 
     return matchesSearch && matchesVersion;
   });
@@ -291,9 +330,13 @@ const NewRelease: React.FC = () => {
                       <select
                         className="form-select bg-dark text-light border-secondary"
                         value={fixVersionFilter}
-                        onChange={(e) => setFixVersionFilter(e.target.value)}
+                        onChange={(e) =>
+                          handleFilterChange(e, setFixVersionFilter)
+                        }
+                        multiple
+                        size={4}
                       >
-                        <option value="">All Fix Versions</option>
+                        <option value="all">All Fix Versions</option>
                         {uniqueFixVersions.map((version) => (
                           <option key={version} value={version}>
                             {version}
@@ -581,6 +624,26 @@ const NewRelease: React.FC = () => {
                         </button>
                       </div>
                     ))}
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label text-light">
+                      Status Filter
+                    </label>
+                    <select
+                      className="form-select bg-dark text-light border-secondary"
+                      value={statusFilter}
+                      onChange={(e) => handleFilterChange(e, setStatusFilter)}
+                      multiple
+                      size={4}
+                    >
+                      <option value="all">All Statuses</option>
+                      {availableStatuses.map((status) => (
+                        <option key={status.id} value={status.name}>
+                          {status.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 

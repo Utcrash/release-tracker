@@ -15,7 +15,6 @@ const JiraSidebar: React.FC<JiraSidebarProps> = ({
   const [tickets, setTickets] = useState<JiraTicket[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastSynced, setLastSynced] = useState<Date | null>(null);
 
   const fetchTickets = async () => {
     try {
@@ -28,21 +27,6 @@ const JiraSidebar: React.FC<JiraSidebarProps> = ({
     }
   };
 
-  const handleSync = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      await jiraService.syncReadyForReleaseTickets(componentId, jiraProjectKey);
-      await fetchTickets();
-      setLastSynced(new Date());
-    } catch (err) {
-      console.error('Error syncing tickets:', err);
-      setError('Failed to sync tickets');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
     fetchTickets();
   }, [componentId]);
@@ -51,20 +35,7 @@ const JiraSidebar: React.FC<JiraSidebarProps> = ({
     <div className="jira-sidebar">
       <div className="jira-sidebar-header">
         <h3>JIRA Tickets</h3>
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={handleSync}
-          disabled={loading}
-        >
-          {loading ? 'Syncing...' : 'Sync Now'}
-        </button>
       </div>
-
-      {lastSynced && (
-        <div className="last-synced">
-          Last synced: {lastSynced.toLocaleTimeString()}
-        </div>
-      )}
 
       {error && <div className="alert alert-danger">{error}</div>}
 

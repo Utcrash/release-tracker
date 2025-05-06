@@ -4,21 +4,38 @@ const Release = require('../models/Release');
 const JiraTicket = require('../models/JiraTicket');
 const mongoose = require('mongoose');
 
-// Get all releases
+// Get all releases with pagination
 router.get('/', async (req, res) => {
     try {
         let query = {};
+        const page = parseInt(req.query.page) || 1;
+        const limit = 20;
+        const skip = (page - 1) * limit;
 
         // Filter by serviceId if provided
         if (req.query.serviceId) {
             query.serviceId = req.query.serviceId;
         }
 
+        // Get total count for pagination
+        const total = await Release.countDocuments(query);
+
+        // Get paginated releases
         const releases = await Release.find(query)
             .populate('jiraTickets')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
 
-        res.json(releases);
+        res.json({
+            releases,
+            pagination: {
+                total,
+                page,
+                totalPages: Math.ceil(total / limit),
+                hasMore: page < Math.ceil(total / limit)
+            }
+        });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

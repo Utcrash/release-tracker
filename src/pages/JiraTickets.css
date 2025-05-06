@@ -104,3 +104,100 @@
     border-color: #86b7fe;
     box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
 } 
+
+/* Filter row styling */
+.filter-row th {
+    padding-top: 0;
+    vertical-align: top;
+}
+
+.filter-row .form-select {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+.filter-row .form-select:focus {
+    border-color: #4d5154;
+    box-shadow: 0 0 0 0.15rem rgba(255, 255, 255, 0.1);
+}
+
+.filter-row .btn-outline-secondary {
+    padding: 0.25rem 0.5rem;
+    margin-top: 0;
+}
+
+.filter-row .btn-outline-secondary:hover {
+    background-color: #2c3034;
+}
+
+/* JIRA Query Dialog */
+.jira-query-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1050;
+    padding: 1rem;
+}
+
+.jira-query-content {
+    background-color: #2c3034;
+    border-radius: 6px;
+    width: 100%;
+    max-width: 700px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+
+.jira-query-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid #1a1d21;
+}
+
+.jira-query-header h5 {
+    margin: 0;
+    color: #e1e3e5;
+}
+
+.jira-query-body {
+    padding: 1rem;
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+.jira-query-body pre {
+    background-color: #1a1d21;
+    color: #e1e3e5;
+    padding: 1rem;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 0;
+    font-family: monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.jira-query-footer {
+    padding: 1rem;
+    border-top: 1px solid #1a1d21;
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* Animation for dialog appearance */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.jira-query-dialog {
+    animation: fadeIn 0.3s ease-out;
+} 

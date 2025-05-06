@@ -12,16 +12,22 @@ const Releases: React.FC = () => {
   const [releases, setReleases] = useState<Release[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [versionFilter, setVersionFilter] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
     fetchReleases();
-  }, []);
+  }, [currentPage]); // Fetch when page changes
 
   const fetchReleases = async () => {
     try {
       setLoading(true);
-      const data = await releaseService.getAllReleases();
-      setReleases(data);
+      const data = await releaseService.getAllReleases(currentPage);
+      setReleases(data.releases);
+      setTotalPages(data.pagination.totalPages);
+      setHasMore(data.pagination.hasMore);
       setError(null);
     } catch (err) {
       console.error('Error fetching releases:', err);
@@ -29,6 +35,32 @@ const Releases: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Function to filter releases based on version
+  const filterReleases = (releases: Release[], filter: string): Release[] => {
+    if (!filter) return releases;
+
+    const filterParts = filter.trim().split('.');
+    return releases.filter((release) => {
+      const versionParts = release.version.split('.');
+
+      // Match exact version if all parts are provided (e.g., "2.8.4")
+      if (filterParts.length === 3) {
+        return release.version === filter;
+      }
+
+      // Match major and minor versions (e.g., "2.8")
+      if (filterParts.length === 2) {
+        return (
+          versionParts[0] === filterParts[0] &&
+          versionParts[1] === filterParts[1]
+        );
+      }
+
+      // Match major version only (e.g., "2")
+      return versionParts[0] === filterParts[0];
+    });
   };
 
   const handleDelete = async (id: string, version: string) => {
@@ -94,6 +126,102 @@ const Releases: React.FC = () => {
     }
   };
 
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo(0, 0);
+  };
+
+  const renderPagination = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(
+        <li
+          key={i}
+          className={`page-item ${currentPage === i ? 'active' : ''}`}
+        >
+          <button
+            className="page-link bg-dark text-light border-secondary"
+            onClick={() => handlePageChange(i)}
+          >
+            {i}
+          </button>
+        </li>
+      );
+    }
+
+    return (
+      <nav aria-label="Release pagination" className="mt-4">
+        <ul className="pagination justify-content-center">
+          <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
+            <button
+              className="page-link bg-dark text-light border-secondary"
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </button>
+          </li>
+          {startPage > 1 && (
+            <>
+              <li className="page-item">
+                <button
+                  className="page-link bg-dark text-light border-secondary"
+                  onClick={() => handlePageChange(1)}
+                >
+                  1
+                </button>
+              </li>
+              {startPage > 2 && (
+                <li className="page-item disabled">
+                  <span className="page-link bg-dark text-light border-secondary">
+                    ...
+                  </span>
+                </li>
+              )}
+            </>
+          )}
+          {pages}
+          {endPage < totalPages && (
+            <>
+              {endPage < totalPages - 1 && (
+                <li className="page-item disabled">
+                  <span className="page-link bg-dark text-light border-secondary">
+                    ...
+                  </span>
+                </li>
+              )}
+              <li className="page-item">
+                <button
+                  className="page-link bg-dark text-light border-secondary"
+                  onClick={() => handlePageChange(totalPages)}
+                >
+                  {totalPages}
+                </button>
+              </li>
+            </>
+          )}
+          <li className={`page-item ${!hasMore ? 'disabled' : ''}`}>
+            <button
+              className="page-link bg-dark text-light border-secondary"
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={!hasMore}
+            >
+              Next
+            </button>
+          </li>
+        </ul>
+      </nav>
+    );
+  };
+
   if (loading) {
     return (
       <div className="dark-theme min-vh-100 d-flex align-items-center justify-content-center">
@@ -103,6 +231,8 @@ const Releases: React.FC = () => {
       </div>
     );
   }
+
+  const filteredReleases = filterReleases(releases, versionFilter);
 
   return (
     <div className="dark-theme min-vh-100 py-4">
@@ -116,10 +246,21 @@ const Releases: React.FC = () => {
               </p>
               {error && <div className="alert alert-danger mt-2">{error}</div>}
             </div>
-            <Link to="/new-release" className="btn btn-primary">
-              <i className="bi bi-plus me-2"></i>
-              New Release
-            </Link>
+            <div className="d-flex align-items-center">
+              <div className="me-3">
+                <input
+                  type="text"
+                  className="form-control bg-dark text-light border-secondary"
+                  placeholder="Filter by version (e.g., 2 or 2.8 or 2.8.4)"
+                  value={versionFilter}
+                  onChange={(e) => setVersionFilter(e.target.value)}
+                />
+              </div>
+              <Link to="/new-release" className="btn btn-primary">
+                <i className="bi bi-plus me-2"></i>
+                New Release
+              </Link>
+            </div>
           </div>
         </div>
 
@@ -138,17 +279,19 @@ const Releases: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {releases.length === 0 ? (
+                {filteredReleases.length === 0 ? (
                   <tr>
                     <td
                       colSpan={7}
                       className="text-center p-4 text-light-muted border-secondary"
                     >
-                      No releases found
+                      {versionFilter
+                        ? 'No releases found matching the filter'
+                        : 'No releases found'}
                     </td>
                   </tr>
                 ) : (
-                  releases.map((release) => (
+                  filteredReleases.map((release) => (
                     <tr key={release._id} className="border-secondary">
                       <td className="border-secondary">
                         <Link
@@ -211,6 +354,8 @@ const Releases: React.FC = () => {
             </table>
           </div>
         </div>
+
+        {!versionFilter && renderPagination()}
       </div>
     </div>
   );

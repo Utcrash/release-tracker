@@ -7,9 +7,23 @@ export type CreateReleaseDto = Omit<Release, '_id'> & {
     tickets?: JiraTicket[];
 };
 
+// Type for updating a release
+export type UpdateReleaseDto = Partial<CreateReleaseDto>;
+
+// Type for paginated response
+export interface PaginatedResponse<T> {
+    releases: T[];
+    pagination: {
+        total: number;
+        page: number;
+        totalPages: number;
+        hasMore: boolean;
+    };
+}
+
 export const releaseService = {
-    getAllReleases: async (): Promise<Release[]> => {
-        const response = await api.get<Release[]>('/releases');
+    getAllReleases: async (page: number = 1): Promise<PaginatedResponse<Release>> => {
+        const response = await api.get<PaginatedResponse<Release>>(`/releases?page=${page}`);
         return handleResponse(response);
     },
 
@@ -33,7 +47,7 @@ export const releaseService = {
         return handleResponse(response);
     },
 
-    updateRelease: async (id: string, release: Partial<Release>): Promise<Release> => {
+    updateRelease: async (id: string, release: UpdateReleaseDto): Promise<Release> => {
         const response = await api.put<Release>(`/releases/${id}`, release);
         return handleResponse(response);
     },

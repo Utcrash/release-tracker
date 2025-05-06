@@ -58,6 +58,22 @@ interface JiraProject {
     name: string;
 }
 
+interface JiraStatusResponse {
+    id: string;
+    name: string;
+    subtask: boolean;
+    statuses: Array<{
+        id: string;
+        name: string;
+        statusCategory: {
+            id: number;
+            key: string;
+            colorName: string;
+            name: string;
+        };
+    }>;
+}
+
 // Create JIRA API client that uses our backend proxy
 const jiraApi = api;
 // The path will be prefixed with /jira/proxy/ to use our backend proxy
@@ -77,11 +93,16 @@ export const jiraService = {
         }
     },
 
-    getTicketsByStatus: async (projectKey: string = 'DNIO', status: string): Promise<JiraTicket[]> => {
+    getTicketsByStatuses: async (projectKey: string = 'DNIO', statuses: string[]): Promise<JiraTicket[]> => {
         try {
+            // If no statuses provided, empty array, or contains 'all', fetch all tickets
+            const jql = !statuses.length || statuses.includes('all')
+                ? `project=${projectKey}`
+                : `project=${projectKey} AND (${statuses.map(status => `status="${status}"`).join(' OR ')})`;
+
             const response = await jiraApi.get<JiraApiResponse>('/jira/proxy/search', {
                 params: {
-                    jql: `project=${projectKey} AND status="${status}"`,
+                    jql,
                     maxResults: 50,
                     fields: [
                         'key',
@@ -114,24 +135,35 @@ export const jiraService = {
         }
     },
 
+    // Update fetchJiraTickets to use the new method
+    fetchJiraTickets: async (statuses: string[] = ['Ready For Release', 'Done', 'In Progress']): Promise<JiraTicket[]> => {
+        try {
+            const tickets = await jiraService.getTicketsByStatuses('DNIO', statuses);
+            return tickets;
+        } catch (error) {
+            console.error('Error fetching JIRA tickets:', error);
+            throw error;
+        }
+    },
+
     // Get Ready for Release tickets
     getReadyForReleaseTickets: async (projectKey: string = 'DNIO'): Promise<JiraTicket[]> => {
-        return jiraService.getTicketsByStatus(projectKey, 'Ready For Release');
+        return jiraService.getTicketsByStatuses(projectKey, ['Ready For Release']);
     },
 
     // Get In Progress tickets
     getInProgressTickets: async (projectKey: string = 'DNIO'): Promise<JiraTicket[]> => {
-        return jiraService.getTicketsByStatus(projectKey, 'In Progress');
+        return jiraService.getTicketsByStatuses(projectKey, ['In Progress']);
     },
 
     // Get Done tickets
     getDoneTickets: async (projectKey: string = 'DNIO'): Promise<JiraTicket[]> => {
-        return jiraService.getTicketsByStatus(projectKey, 'Done');
+        return jiraService.getTicketsByStatuses(projectKey, ['Done']);
     },
 
     // Get To Do tickets
     getToDoTickets: async (projectKey: string = 'DNIO'): Promise<JiraTicket[]> => {
-        return jiraService.getTicketsByStatus(projectKey, 'To Do');
+        return jiraService.getTicketsByStatuses(projectKey, ['To Do']);
     },
 
     // Get all tickets regardless of status
@@ -189,24 +221,6 @@ export const jiraService = {
         }
     },
 
-    // This will update our backend with the fetched tickets
-    syncReadyForReleaseTickets: async (componentId?: string, projectKey: string = 'DNIO'): Promise<void> => {
-        try {
-            const tickets = await jiraService.getReadyForReleaseTickets(projectKey);
-
-            if (componentId) {
-                // If componentId is provided, sync tickets for that component
-                await api.post(`/jira/sync/${componentId}`, { tickets });
-            } else {
-                // Otherwise, sync tickets globally
-                await api.post('/jira/sync', { tickets });
-            }
-        } catch (error) {
-            console.error('Error syncing JIRA tickets:', error);
-            throw error;
-        }
-    },
-
     // Get all tickets from our backend
     getTicketsFromBackend: async (): Promise<JiraTicket[]> => {
         try {
@@ -215,6 +229,58 @@ export const jiraService = {
         } catch (error) {
             console.error('Error fetching tickets from backend:', error);
             throw error;
+        }
+    },
+
+    // Get all JIRA statuses
+    getAllStatuses: async (projectKey: string = 'DNIO'): Promise<string[]> => {
+        try {
+            const response = await jiraApi.get<JiraStatusResponse[]>(`/jira/proxy/project/${projectKey}/statuses`);
+            const statuses = response.data
+                .flatMap(issueType => issueType.statuses.map(status => status.name))
+                .filter((value, index, self) => self.indexOf(value) === index)
+                .sort();
+            return statuses;
+        } catch (error) {
+            console.error('Error fetching JIRA statuses:', error);
+            throw error;
+        }
+    },
+
+    // Get all available JIRA statuses
+    getJiraStatuses: async (projectKey: string = 'DNIO'): Promise<Array<{ id: string; name: string; category: string }>> => {
+        try {
+            const response = await jiraApi.get<JiraStatusResponse[]>(`/jira/proxy/project/${projectKey}/statuses`);
+
+            // Extract all unique statuses from all issue types
+            const uniqueStatuses = new Map<string, { id: string; name: string; category: string }>();
+
+            response.data.forEach(issueType => {
+                issueType.statuses.forEach(status => {
+                    // Use status name as key to avoid duplicates
+                    uniqueStatuses.set(status.name, {
+                        id: status.id,
+                        name: status.name,
+                        category: status.statusCategory.name
+                    });
+                });
+            });
+
+            // Convert Map to array and sort by name
+            return Array.from(uniqueStatuses.values()).sort((a, b) => a.name.localeCompare(b.name));
+        } catch (error) {
+            console.error('Error fetching JIRA statuses:', error);
+            // Return default statuses if API fails
+            return [
+                { id: '1', name: 'OPEN', category: 'To Do' },
+                { id: '10018', name: 'Dev in progress', category: 'In Progress' },
+                { id: '10019', name: 'QA in progress', category: 'In Progress' },
+                { id: '10095', name: 'QA Ready', category: 'To Do' },
+                { id: '10054', name: 'Need Info-QA', category: 'To Do' },
+                { id: '10118', name: 'Need Info-Customer', category: 'To Do' },
+                { id: '10123', name: 'Ready for Release', category: 'Done' },
+                { id: '6', name: 'Closed', category: 'Done' }
+            ];
         }
     }
 }; 

@@ -8,7 +8,6 @@ import {
 import Sidebar from './components/Sidebar';
 import JiraTickets from './pages/JiraTickets';
 import Releases from './pages/Releases';
-import NewRelease from './pages/NewRelease';
 import ReleaseDetails from './pages/ReleaseDetails';
 import EditRelease from './pages/EditRelease';
 import { AlertProvider } from './context/AlertContext';
@@ -43,7 +42,6 @@ function App() {
                 <Route path="/" element={<Navigate to="/jira" replace />} />
                 <Route path="/jira" element={<JiraTickets />} />
                 <Route path="/releases" element={<Releases />} />
-                <Route path="/new-release" element={<NewRelease />} />
                 <Route path="/releases/:id" element={<ReleaseDetails />} />
                 <Route path="/edit-release/:id" element={<EditRelease />} />
               </Routes>
