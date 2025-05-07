@@ -37,12 +37,66 @@ router.use('/proxy', async (req, res) => {
 
         // Build the complete URL with the JIRA base URL
         const url = `${JIRA_BASE_URL}/rest/api/${JIRA_API_VERSION}/${jiraPath}`;
-        console.log('Proxying JIRA request to:', url, 'with params:', req.query);
+        console.log('\n=== JIRA API Request Details ===');
+        console.log('Full URL:', url);
+        console.log('Original Request URL:', req.url);
+        console.log('Request Method:', req.method);
+        console.log('Request Query:', JSON.stringify(req.query, null, 2));
+        console.log('Request Headers:', JSON.stringify({
+            ...req.headers,
+            authorization: req.headers.authorization ? 'Present' : 'Missing'
+        }, null, 2));
+        console.log('Auth Header:', jiraClient.defaults.headers.Authorization ? 'Present' : 'Missing');
+        console.log('================================\n');
 
-        const response = await jiraClient.get(url, { params: req.query });
+        // Special handling for search endpoint
+        if (jiraPath === 'search') {
+            console.log('Processing JIRA search request');
+            console.log('JQL:', req.query.jql);
+            console.log('Fields:', req.query.fields);
+        }
+
+        const response = await jiraClient.get(url, {
+            params: req.query,
+            validateStatus: function (status) {
+                return true; // Accept all status codes
+            }
+        });
+
+        console.log('\n=== JIRA API Response Details ===');
+        console.log('Status:', response.status);
+        console.log('Status Text:', response.statusText);
+        console.log('Headers:', JSON.stringify(response.headers, null, 2));
+        if (jiraPath === 'search') {
+            console.log('Search Response:', JSON.stringify({
+                total: response.data?.total,
+                issues: response.data?.issues?.length,
+                maxResults: response.data?.maxResults
+            }, null, 2));
+        } else {
+            console.log('Response Data:', JSON.stringify(response.data, null, 2));
+        }
+        console.log('================================\n');
+
+        if (response.status >= 400) {
+            throw {
+                response: {
+                    status: response.status,
+                    data: response.data
+                }
+            };
+        }
+
         res.json(response.data);
     } catch (error) {
-        console.error('JIRA API Error:', error.response?.data || error.message);
+        console.error('\n=== JIRA API Error Details ===');
+        console.error('Error Status:', error.response?.status);
+        console.error('Error Status Text:', error.response?.statusText);
+        console.error('Error Headers:', JSON.stringify(error.response?.headers, null, 2));
+        console.error('Error Data:', JSON.stringify(error.response?.data, null, 2));
+        console.error('Error Message:', error.message);
+        console.error('================================\n');
+
         res.status(error.response?.status || 500).json(error.response?.data || { message: error.message });
     }
 });

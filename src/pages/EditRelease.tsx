@@ -69,6 +69,8 @@ const EditRelease: React.FC = () => {
     jiraTickets: [],
     customer: '',
   });
+  const [showNewComponentModal, setShowNewComponentModal] = useState(false);
+  const [newComponentName, setNewComponentName] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -463,6 +465,25 @@ const EditRelease: React.FC = () => {
     </div>
   );
 
+  // Add new component handler
+  const handleAddNewComponent = () => {
+    if (newComponentName.trim()) {
+      setFormData((prev) => ({
+        ...prev,
+        componentDeliveries: [
+          ...prev.componentDeliveries,
+          {
+            name: newComponentName.trim(),
+            dockerHubLink: '',
+            eDeliveryLink: '',
+          },
+        ],
+      }));
+      setNewComponentName('');
+      setShowNewComponentModal(false);
+    }
+  };
+
   return (
     <div className="dark-theme min-vh-100 py-4">
       <div className="container">
@@ -748,69 +769,73 @@ const EditRelease: React.FC = () => {
                 </div>
               </div>
 
-              {formData.componentDeliveries.length > 0 && (
-                <div className="card bg-dark border-secondary mb-4">
-                  <div className="card-header border-secondary">
-                    <h5 className="mb-0 text-light">Components</h5>
-                  </div>
-                  <div className="card-body">
-                    <div className="table-responsive">
-                      <table className="table table-dark table-bordered mb-0">
-                        <thead>
-                          <tr className="border-secondary">
-                            <th className="border-secondary">Component</th>
-                            <th className="border-secondary">DockerHub Link</th>
-                            <th className="border-secondary">
-                              E-Delivery Link
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {formData.componentDeliveries.map(
-                            (component, index) => (
-                              <tr key={index} className="border-secondary">
-                                <td className="border-secondary text-light">
-                                  {component.name}
-                                </td>
-                                <td className="border-secondary">
-                                  <input
-                                    type="text"
-                                    className="form-control bg-dark text-light border-secondary"
-                                    value={component.dockerHubLink || ''}
-                                    onChange={(e) =>
-                                      handleComponentLinkChange(
-                                        index,
-                                        'dockerHubLink',
-                                        e.target.value
-                                      )
-                                    }
-                                    placeholder="DockerHub URL"
-                                  />
-                                </td>
-                                <td className="border-secondary">
-                                  <input
-                                    type="text"
-                                    className="form-control bg-dark text-light border-secondary"
-                                    value={component.eDeliveryLink || ''}
-                                    onChange={(e) =>
-                                      handleComponentLinkChange(
-                                        index,
-                                        'eDeliveryLink',
-                                        e.target.value
-                                      )
-                                    }
-                                    placeholder="E-Delivery URL"
-                                  />
-                                </td>
-                              </tr>
-                            )
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
+              <div className="card bg-dark border-secondary mb-4">
+                <div className="card-header border-secondary d-flex justify-content-between align-items-center">
+                  <h5 className="mb-0 text-light">Components Affected</h5>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-success"
+                    onClick={() => setShowNewComponentModal(true)}
+                  >
+                    <i className="bi bi-plus-lg me-1"></i>
+                    Add Component
+                  </button>
+                </div>
+                <div className="card-body">
+                  <div className="table-responsive">
+                    <table className="table table-dark table-bordered mb-0">
+                      <thead>
+                        <tr className="border-secondary">
+                          <th className="border-secondary">Component</th>
+                          <th className="border-secondary">DockerHub Link</th>
+                          <th className="border-secondary">E-Delivery Link</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {formData.componentDeliveries.map(
+                          (component, index) => (
+                            <tr key={index} className="border-secondary">
+                              <td className="border-secondary text-light">
+                                {component.name}
+                              </td>
+                              <td className="border-secondary">
+                                <input
+                                  type="text"
+                                  className="form-control bg-dark text-light border-secondary"
+                                  value={component.dockerHubLink || ''}
+                                  onChange={(e) =>
+                                    handleComponentLinkChange(
+                                      index,
+                                      'dockerHubLink',
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="DockerHub URL"
+                                />
+                              </td>
+                              <td className="border-secondary">
+                                <input
+                                  type="text"
+                                  className="form-control bg-dark text-light border-secondary"
+                                  value={component.eDeliveryLink || ''}
+                                  onChange={(e) =>
+                                    handleComponentLinkChange(
+                                      index,
+                                      'eDeliveryLink',
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="E-Delivery URL"
+                                />
+                              </td>
+                            </tr>
+                          )
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-              )}
+              </div>
 
               <div className="card bg-dark border-secondary">
                 <div className="card-body">
@@ -845,6 +870,60 @@ const EditRelease: React.FC = () => {
             </div>
           </div>
         </form>
+
+        {/* Add Component Modal */}
+        {showNewComponentModal && (
+          <div
+            className="modal fade show"
+            style={{ display: 'block' }}
+            tabIndex={-1}
+          >
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content bg-dark border-secondary">
+                <div className="modal-header border-secondary">
+                  <h5 className="modal-title text-light">Add New Component</h5>
+                  <button
+                    type="button"
+                    className="btn-close btn-close-white"
+                    onClick={() => setShowNewComponentModal(false)}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <div className="mb-3">
+                    <label className="form-label text-light">
+                      Component Name
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control bg-dark text-light border-secondary"
+                      value={newComponentName}
+                      onChange={(e) => setNewComponentName(e.target.value)}
+                      placeholder="Enter component name"
+                    />
+                  </div>
+                </div>
+                <div className="modal-footer border-secondary">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowNewComponentModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-success"
+                    onClick={handleAddNewComponent}
+                    disabled={!newComponentName.trim()}
+                  >
+                    Add Component
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="modal-backdrop fade show"></div>
+          </div>
+        )}
       </div>
     </div>
   );

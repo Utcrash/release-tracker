@@ -1,10 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Select, { MultiValue } from 'react-select';
 import { jiraService } from '../services/jiraService';
 import { releaseService } from '../services/releaseService';
 import { JiraTicket, ComponentDelivery } from '../types';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './JiraTickets.css';
+
+interface JiraStatus {
+  id: string;
+  name: string;
+  category: string;
+}
+
+interface SelectOption {
+  value: string;
+  label: string;
+}
 
 interface NewReleaseFormData {
   version: string;
@@ -12,12 +24,6 @@ interface NewReleaseFormData {
   notes: string;
   additionalPoints: string[];
   componentDeliveries: ComponentDelivery[];
-}
-
-interface JiraStatus {
-  id: string;
-  name: string;
-  category: string;
 }
 
 const NewRelease: React.FC = () => {
@@ -42,6 +48,82 @@ const NewRelease: React.FC = () => {
     additionalPoints: [''],
     componentDeliveries: [],
   });
+  const [showNewComponentModal, setShowNewComponentModal] = useState(false);
+  const [newComponentName, setNewComponentName] = useState('');
+
+  // Convert arrays to react-select options
+  const statusOptions: SelectOption[] = [
+    { value: 'all', label: 'All Statuses' },
+    ...availableStatuses.map((status) => ({
+      value: status.name,
+      label: status.name,
+    })),
+  ];
+
+  const fixVersionOptions: SelectOption[] = [
+    { value: 'all', label: 'All Fix Versions' },
+    ...uniqueFixVersions.map((version) => ({
+      value: version,
+      label: version,
+    })),
+  ];
+
+  // Custom styles for react-select
+  const selectStyles = {
+    control: (base: any) => ({
+      ...base,
+      backgroundColor: '#212529',
+      borderColor: '#495057',
+      '&:hover': {
+        borderColor: '#6c757d',
+      },
+      zIndex: 2,
+      width: '100%',
+    }),
+    menu: (base: any) => ({
+      ...base,
+      backgroundColor: '#212529',
+      border: '1px solid #495057',
+      zIndex: 9999,
+      width: '100%',
+    }),
+    option: (base: any, state: any) => ({
+      ...base,
+      backgroundColor: state.isFocused ? '#495057' : '#212529',
+      '&:hover': {
+        backgroundColor: '#495057',
+      },
+      color: '#fff',
+    }),
+    container: (base: any) => ({
+      ...base,
+      width: '100%',
+    }),
+    multiValue: (base: any) => ({
+      ...base,
+      backgroundColor: '#495057',
+    }),
+    multiValueLabel: (base: any) => ({
+      ...base,
+      color: '#fff',
+    }),
+    multiValueRemove: (base: any) => ({
+      ...base,
+      color: '#fff',
+      '&:hover': {
+        backgroundColor: '#6c757d',
+        color: '#fff',
+      },
+    }),
+    input: (base: any) => ({
+      ...base,
+      color: '#fff',
+    }),
+    singleValue: (base: any) => ({
+      ...base,
+      color: '#fff',
+    }),
+  };
 
   useEffect(() => {
     const fetchStatuses = async () => {
@@ -251,19 +333,53 @@ const NewRelease: React.FC = () => {
     }
   };
 
-  const handleFilterChange = (
-    event: React.ChangeEvent<HTMLSelectElement>,
-    setFilter: React.Dispatch<React.SetStateAction<string[]>>
+  const handleStatusFilterChange = (
+    selectedOptions: MultiValue<SelectOption> | null
   ) => {
-    const selectedOptions = Array.from(
-      event.target.selectedOptions,
-      (option) => option.value
-    );
-    // If 'all' is selected, clear other selections
-    if (selectedOptions.includes('all')) {
-      setFilter(['all']);
+    if (!selectedOptions || selectedOptions.length === 0) {
+      setStatusFilter(['all']);
+      return;
+    }
+
+    const values = selectedOptions.map((option) => option.value);
+
+    // Check if 'all' is being selected or deselected
+    if (values.includes('all')) {
+      // If all wasn't previously selected, select only 'all'
+      if (!statusFilter.includes('all')) {
+        setStatusFilter(['all']);
+      } else {
+        // If all was previously selected and user is trying to select something else,
+        // remove 'all' and select only the new option
+        setStatusFilter(values.filter((v) => v !== 'all'));
+      }
     } else {
-      setFilter(selectedOptions);
+      setStatusFilter(values);
+    }
+  };
+
+  const handleFixVersionFilterChange = (
+    selectedOptions: MultiValue<SelectOption> | null
+  ) => {
+    if (!selectedOptions || selectedOptions.length === 0) {
+      setFixVersionFilter(['all']);
+      return;
+    }
+
+    const values = selectedOptions.map((option) => option.value);
+
+    // Check if 'all' is being selected or deselected
+    if (values.includes('all')) {
+      // If all wasn't previously selected, select only 'all'
+      if (!fixVersionFilter.includes('all')) {
+        setFixVersionFilter(['all']);
+      } else {
+        // If all was previously selected and user is trying to select something else,
+        // remove 'all' and select only the new option
+        setFixVersionFilter(values.filter((v) => v !== 'all'));
+      }
+    } else {
+      setFixVersionFilter(values);
     }
   };
 
@@ -279,6 +395,25 @@ const NewRelease: React.FC = () => {
 
     return matchesSearch && matchesVersion;
   });
+
+  // Add new component handler
+  const handleAddNewComponent = () => {
+    if (newComponentName.trim()) {
+      setFormData((prev) => ({
+        ...prev,
+        componentDeliveries: [
+          ...prev.componentDeliveries,
+          {
+            name: newComponentName.trim(),
+            dockerHubLink: '',
+            eDeliveryLink: '',
+          },
+        ],
+      }));
+      setNewComponentName('');
+      setShowNewComponentModal(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -310,9 +445,12 @@ const NewRelease: React.FC = () => {
                 <div className="card-header border-secondary">
                   <h5 className="mb-0 text-light">Select JIRA Tickets</h5>
                 </div>
-                <div className="card-body">
-                  <div className="row mb-3">
-                    <div className="col-md-6">
+                <div
+                  className="card-body"
+                  style={{ position: 'relative', zIndex: 3 }}
+                >
+                  <div className="row g-3 mb-3">
+                    <div className="col-lg-4" style={{ position: 'relative' }}>
                       <div className="input-group">
                         <span className="input-group-text bg-dark border-secondary">
                           <i className="bi bi-search text-light"></i>
@@ -320,29 +458,53 @@ const NewRelease: React.FC = () => {
                         <input
                           type="text"
                           className="form-control bg-dark text-light border-secondary"
-                          placeholder="Search tickets..."
+                          placeholder="Search..."
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
                         />
                       </div>
                     </div>
-                    <div className="col-md-6">
-                      <select
-                        className="form-select bg-dark text-light border-secondary"
-                        value={fixVersionFilter}
-                        onChange={(e) =>
-                          handleFilterChange(e, setFixVersionFilter)
+                    <div className="col-lg-4" style={{ position: 'relative' }}>
+                      <Select
+                        isMulti
+                        options={statusOptions}
+                        value={
+                          statusFilter.includes('all')
+                            ? []
+                            : statusOptions.filter((option) =>
+                                statusFilter.includes(option.value)
+                              )
                         }
-                        multiple
-                        size={4}
-                      >
-                        <option value="all">All Fix Versions</option>
-                        {uniqueFixVersions.map((version) => (
-                          <option key={version} value={version}>
-                            {version}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(selected) =>
+                          handleStatusFilterChange(selected)
+                        }
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                        styles={selectStyles}
+                        placeholder="Select Statuses"
+                        menuPortalTarget={document.body}
+                        menuPosition="fixed"
+                      />
+                    </div>
+                    <div className="col-lg-4" style={{ position: 'relative' }}>
+                      <Select
+                        isMulti
+                        options={fixVersionOptions}
+                        value={
+                          fixVersionFilter.includes('all')
+                            ? []
+                            : fixVersionOptions.filter((option) =>
+                                fixVersionFilter.includes(option.value)
+                              )
+                        }
+                        onChange={handleFixVersionFilterChange}
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                        styles={selectStyles}
+                        placeholder="Select Fix Versions"
+                        menuPortalTarget={document.body}
+                        menuPosition="fixed"
+                      />
                     </div>
                   </div>
 
@@ -381,6 +543,7 @@ const NewRelease: React.FC = () => {
                           ></th>
                           <th className="border-secondary">Ticket ID</th>
                           <th className="border-secondary">Summary</th>
+                          <th className="border-secondary">Status</th>
                           <th className="border-secondary">Assignee</th>
                           <th className="border-secondary">Components</th>
                           <th className="border-secondary">Fix Versions</th>
@@ -390,7 +553,7 @@ const NewRelease: React.FC = () => {
                         {filteredTickets.length === 0 ? (
                           <tr>
                             <td
-                              colSpan={5}
+                              colSpan={7}
                               className="text-center p-4 text-light-muted border-secondary"
                             >
                               No tickets found matching your criteria
@@ -438,6 +601,9 @@ const NewRelease: React.FC = () => {
                                 {ticket.summary}
                               </td>
                               <td className="border-secondary text-light">
+                                {ticket.status}
+                              </td>
+                              <td className="border-secondary text-light">
                                 {ticket.assignee}
                               </td>
                               <td className="border-secondary">
@@ -470,9 +636,20 @@ const NewRelease: React.FC = () => {
               </div>
 
               {formData.componentDeliveries.length > 0 && (
-                <div className="card bg-dark border-secondary mb-4">
-                  <div className="card-header border-secondary">
+                <div
+                  className="card bg-dark border-secondary mb-4"
+                  style={{ position: 'relative', zIndex: 2 }}
+                >
+                  <div className="card-header border-secondary d-flex justify-content-between align-items-center">
                     <h5 className="mb-0 text-light">Components Affected</h5>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-success"
+                      onClick={() => setShowNewComponentModal(true)}
+                    >
+                      <i className="bi bi-plus-lg me-1"></i>
+                      Add Component
+                    </button>
                   </div>
                   <div className="card-body">
                     <div className="table-responsive">
@@ -625,26 +802,6 @@ const NewRelease: React.FC = () => {
                       </div>
                     ))}
                   </div>
-
-                  <div className="mb-3">
-                    <label className="form-label text-light">
-                      Status Filter
-                    </label>
-                    <select
-                      className="form-select bg-dark text-light border-secondary"
-                      value={statusFilter}
-                      onChange={(e) => handleFilterChange(e, setStatusFilter)}
-                      multiple
-                      size={4}
-                    >
-                      <option value="all">All Statuses</option>
-                      {availableStatuses.map((status) => (
-                        <option key={status.id} value={status.name}>
-                          {status.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
                 </div>
 
                 <div className="card-footer border-secondary d-flex justify-content-between">
@@ -671,6 +828,60 @@ const NewRelease: React.FC = () => {
             </div>
           </div>
         </form>
+
+        {/* Add Component Modal */}
+        {showNewComponentModal && (
+          <div
+            className="modal fade show"
+            style={{ display: 'block' }}
+            tabIndex={-1}
+          >
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content bg-dark border-secondary">
+                <div className="modal-header border-secondary">
+                  <h5 className="modal-title text-light">Add New Component</h5>
+                  <button
+                    type="button"
+                    className="btn-close btn-close-white"
+                    onClick={() => setShowNewComponentModal(false)}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <div className="mb-3">
+                    <label className="form-label text-light">
+                      Component Name
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control bg-dark text-light border-secondary"
+                      value={newComponentName}
+                      onChange={(e) => setNewComponentName(e.target.value)}
+                      placeholder="Enter component name"
+                    />
+                  </div>
+                </div>
+                <div className="modal-footer border-secondary">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowNewComponentModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-success"
+                    onClick={handleAddNewComponent}
+                    disabled={!newComponentName.trim()}
+                  >
+                    Add Component
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="modal-backdrop fade show"></div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -256,7 +256,7 @@ const Releases: React.FC = () => {
                   onChange={(e) => setVersionFilter(e.target.value)}
                 />
               </div>
-              <Link to="/new-release" className="btn btn-primary">
+              <Link to="/releases/new" className="btn btn-primary">
                 <i className="bi bi-plus me-2"></i>
                 New Release
               </Link>

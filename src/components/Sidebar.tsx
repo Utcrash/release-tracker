@@ -28,6 +28,9 @@ const Sidebar: React.FC = () => {
   return (
     <div className="sidebar">
       <div className="sidebar-header">
+        <div className="logo-container">
+          <div className="datanimbus-logo" />
+        </div>
         <h5>Release Tracker</h5>
       </div>
 

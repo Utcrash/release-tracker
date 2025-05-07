@@ -44,32 +44,35 @@ const JiraTickets: React.FC = () => {
   const selectStyles = {
     control: (base: any) => ({
       ...base,
-      background: '#212529',
-      borderColor: '#6c757d',
+      backgroundColor: '#212529',
+      borderColor: '#495057',
       '&:hover': {
         borderColor: '#6c757d',
       },
+      position: 'relative',
+      zIndex: 2,
     }),
     menu: (base: any) => ({
       ...base,
-      background: '#212529',
-      border: '1px solid #6c757d',
+      backgroundColor: '#212529',
+      border: '1px solid #495057',
+    }),
+    menuPortal: (base: any) => ({
+      ...base,
+      zIndex: 9999,
+      pointerEvents: 'auto',
     }),
     option: (base: any, state: any) => ({
       ...base,
-      background: state.isFocused ? '#2c3034' : '#212529',
-      color: '#fff',
+      backgroundColor: state.isFocused ? '#495057' : '#212529',
       '&:hover': {
-        background: '#2c3034',
+        backgroundColor: '#495057',
       },
-    }),
-    singleValue: (base: any) => ({
-      ...base,
       color: '#fff',
     }),
     multiValue: (base: any) => ({
       ...base,
-      backgroundColor: '#2c3034',
+      backgroundColor: '#495057',
     }),
     multiValueLabel: (base: any) => ({
       ...base,
@@ -79,11 +82,15 @@ const JiraTickets: React.FC = () => {
       ...base,
       color: '#fff',
       '&:hover': {
-        background: '#dc3545',
+        backgroundColor: '#6c757d',
         color: '#fff',
       },
     }),
     input: (base: any) => ({
+      ...base,
+      color: '#fff',
+    }),
+    singleValue: (base: any) => ({
       ...base,
       color: '#fff',
     }),
@@ -139,16 +146,27 @@ const JiraTickets: React.FC = () => {
   };
 
   const handleFilterChange = (
-    selectedOptions: MultiValue<Option>,
-    setFilter: React.Dispatch<React.SetStateAction<string[]>>
+    selectedOptions: MultiValue<Option> | null,
+    setFilter: React.Dispatch<React.SetStateAction<string[]>>,
+    currentFilter: string[]
   ) => {
     if (!selectedOptions || selectedOptions.length === 0) {
       setFilter(['all']);
       return;
     }
+
     const values = selectedOptions.map((option) => option.value);
+
+    // Check if 'all' is being selected or deselected
     if (values.includes('all')) {
-      setFilter(['all']);
+      // If all wasn't previously selected, select only 'all'
+      if (!currentFilter.includes('all')) {
+        setFilter(['all']);
+      } else {
+        // If all was previously selected and user is trying to select something else,
+        // remove 'all' and select only the new option
+        setFilter(values.filter((v) => v !== 'all'));
+      }
     } else {
       setFilter(values);
     }
@@ -256,74 +274,113 @@ const JiraTickets: React.FC = () => {
           <div className="card-header border-secondary">
             <h5 className="mb-0 text-light">Filters</h5>
           </div>
-          <div className="card-body">
-            <div className="row mb-4 g-3">
-              <div className="col-md-3">
+          <div
+            className="card-body"
+            style={{ position: 'relative', zIndex: 3 }}
+          >
+            <div className="row mb-3">
+              <div className="col-md-3" style={{ position: 'relative' }}>
                 <label className="form-label text-light">Status</label>
-                <Select<Option, true>
+                <Select
                   isMulti
                   options={statusOptions}
-                  styles={selectStyles}
+                  value={
+                    statusFilter.includes('all')
+                      ? []
+                      : statusOptions.filter((option) =>
+                          statusFilter.includes(option.value)
+                        )
+                  }
+                  onChange={(selected) =>
+                    handleFilterChange(selected, setStatusFilter, statusFilter)
+                  }
                   className="react-select-container"
                   classNamePrefix="react-select"
-                  value={statusOptions.filter((option) =>
-                    statusFilter.includes(option.value)
-                  )}
-                  onChange={(selected) =>
-                    handleFilterChange(selected, setStatusFilter)
-                  }
-                  placeholder="Select statuses..."
+                  styles={selectStyles}
+                  placeholder="Select Statuses"
+                  menuPortalTarget={document.body}
+                  menuPosition="fixed"
                 />
               </div>
-              <div className="col-md-3">
+              <div className="col-md-3" style={{ position: 'relative' }}>
                 <label className="form-label text-light">Priority</label>
-                <Select<Option, true>
+                <Select
                   isMulti
                   options={priorityOptions}
-                  styles={selectStyles}
+                  value={
+                    priorityFilter.includes('all')
+                      ? []
+                      : priorityOptions.filter((option) =>
+                          priorityFilter.includes(option.value)
+                        )
+                  }
+                  onChange={(selected) =>
+                    handleFilterChange(
+                      selected,
+                      setPriorityFilter,
+                      priorityFilter
+                    )
+                  }
                   className="react-select-container"
                   classNamePrefix="react-select"
-                  value={priorityOptions.filter((option) =>
-                    priorityFilter.includes(option.value)
-                  )}
-                  onChange={(selected) =>
-                    handleFilterChange(selected, setPriorityFilter)
-                  }
-                  placeholder="Select priorities..."
+                  styles={selectStyles}
+                  placeholder="Select Priorities"
+                  menuPortalTarget={document.body}
+                  menuPosition="fixed"
                 />
               </div>
-              <div className="col-md-3">
+              <div className="col-md-3" style={{ position: 'relative' }}>
                 <label className="form-label text-light">Component</label>
-                <Select<Option, true>
+                <Select
                   isMulti
                   options={componentOptions}
-                  styles={selectStyles}
+                  value={
+                    componentFilter.includes('all')
+                      ? []
+                      : componentOptions.filter((option) =>
+                          componentFilter.includes(option.value)
+                        )
+                  }
+                  onChange={(selected) =>
+                    handleFilterChange(
+                      selected,
+                      setComponentFilter,
+                      componentFilter
+                    )
+                  }
                   className="react-select-container"
                   classNamePrefix="react-select"
-                  value={componentOptions.filter((option) =>
-                    componentFilter.includes(option.value)
-                  )}
-                  onChange={(selected) =>
-                    handleFilterChange(selected, setComponentFilter)
-                  }
-                  placeholder="Select components..."
+                  styles={selectStyles}
+                  placeholder="Select Components"
+                  menuPortalTarget={document.body}
+                  menuPosition="fixed"
                 />
               </div>
-              <div className="col-md-3">
+              <div className="col-md-3" style={{ position: 'relative' }}>
                 <label className="form-label text-light">Fix Version</label>
-                <Select<Option, true>
+                <Select
                   isMulti
                   options={fixVersionOptions}
-                  styles={selectStyles}
+                  value={
+                    fixVersionFilter.includes('all')
+                      ? []
+                      : fixVersionOptions.filter((option) =>
+                          fixVersionFilter.includes(option.value)
+                        )
+                  }
+                  onChange={(selected) =>
+                    handleFilterChange(
+                      selected,
+                      setFixVersionFilter,
+                      fixVersionFilter
+                    )
+                  }
                   className="react-select-container"
                   classNamePrefix="react-select"
-                  value={fixVersionOptions.filter((option) =>
-                    fixVersionFilter.includes(option.value)
-                  )}
-                  onChange={(selected) =>
-                    handleFilterChange(selected, setFixVersionFilter)
-                  }
-                  placeholder="Select versions..."
+                  styles={selectStyles}
+                  placeholder="Select Fix Versions"
+                  menuPortalTarget={document.body}
+                  menuPosition="fixed"
                 />
               </div>
             </div>
@@ -344,7 +401,10 @@ const JiraTickets: React.FC = () => {
 
         {error && <div className="alert alert-danger">{error}</div>}
 
-        <div className="card bg-dark border-secondary">
+        <div
+          className="card bg-dark border-secondary"
+          style={{ position: 'relative', zIndex: 1 }}
+        >
           <div className="card-body">
             <div className="table-responsive">
               <table className="table table-dark table-hover mb-0">

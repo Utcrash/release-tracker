@@ -251,7 +251,9 @@ export const jiraService = {
     // Get all available JIRA statuses
     getJiraStatuses: async (projectKey: string = DEFAULT_PROJECT_KEY): Promise<Array<{ id: string; name: string; category: string }>> => {
         try {
+            console.log('Fetching JIRA statuses for project:', projectKey);
             const response = await jiraApi.get<JiraStatusResponse[]>(`/jira/proxy/project/${projectKey}/statuses`);
+            console.log('JIRA statuses response:', response.data);
 
             // Extract all unique statuses from all issue types
             const uniqueStatuses = new Map<string, { id: string; name: string; category: string }>();
@@ -268,11 +270,17 @@ export const jiraService = {
             });
 
             // Convert Map to array and sort by name
-            return Array.from(uniqueStatuses.values()).sort((a, b) => a.name.localeCompare(b.name));
-        } catch (error) {
+            const result = Array.from(uniqueStatuses.values()).sort((a, b) => a.name.localeCompare(b.name));
+            console.log('Processed JIRA statuses:', result);
+            return result;
+        } catch (error: any) {
             console.error('Error fetching JIRA statuses:', error);
+            if (error.response) {
+                console.error('Response data:', error.response.data);
+                console.error('Response status:', error.response.status);
+            }
             // Return default statuses if API fails
-            return [
+            const defaultStatuses = [
                 { id: '1', name: 'OPEN', category: 'To Do' },
                 { id: '10018', name: 'Dev in progress', category: 'In Progress' },
                 { id: '10019', name: 'QA in progress', category: 'In Progress' },
@@ -282,6 +290,8 @@ export const jiraService = {
                 { id: '10123', name: 'Ready for Release', category: 'Done' },
                 { id: '6', name: 'Closed', category: 'Done' }
             ];
+            console.log('Using default statuses:', defaultStatuses);
+            return defaultStatuses;
         }
     }
 }; 

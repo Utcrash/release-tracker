@@ -10,6 +10,7 @@ import JiraTickets from './pages/JiraTickets';
 import Releases from './pages/Releases';
 import ReleaseDetails from './pages/ReleaseDetails';
 import EditRelease from './pages/EditRelease';
+import NewRelease from './pages/NewRelease';
 import { AlertProvider } from './context/AlertContext';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './styles/darkTheme.css';
@@ -42,6 +43,7 @@ function App() {
                 <Route path="/" element={<Navigate to="/jira" replace />} />
                 <Route path="/jira" element={<JiraTickets />} />
                 <Route path="/releases" element={<Releases />} />
+                <Route path="/releases/new" element={<NewRelease />} />
                 <Route path="/releases/:id" element={<ReleaseDetails />} />
                 <Route path="/edit-release/:id" element={<EditRelease />} />
               </Routes>
