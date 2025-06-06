@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Select, { MultiValue } from 'react-select';
 import { jiraService } from '../services/jiraService';
@@ -35,8 +35,9 @@ const NewRelease: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([
-    'Ready For Release',
+    'Ready for Release',
   ]);
   const [availableStatuses, setAvailableStatuses] = useState<JiraStatus[]>([]);
   const [fixVersionFilter, setFixVersionFilter] = useState<string[]>(['all']);
@@ -50,6 +51,7 @@ const NewRelease: React.FC = () => {
   });
   const [showNewComponentModal, setShowNewComponentModal] = useState(false);
   const [newComponentName, setNewComponentName] = useState('');
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Convert arrays to react-select options
   const statusOptions: SelectOption[] = [
@@ -77,27 +79,27 @@ const NewRelease: React.FC = () => {
       '&:hover': {
         borderColor: '#6c757d',
       },
+      position: 'relative',
       zIndex: 2,
-      width: '100%',
     }),
     menu: (base: any) => ({
       ...base,
       backgroundColor: '#212529',
       border: '1px solid #495057',
       zIndex: 9999,
-      width: '100%',
+    }),
+    menuPortal: (base: any) => ({
+      ...base,
+      zIndex: 9999,
     }),
     option: (base: any, state: any) => ({
       ...base,
       backgroundColor: state.isFocused ? '#495057' : '#212529',
-      '&:hover': {
-        backgroundColor: '#495057',
-      },
       color: '#fff',
-    }),
-    container: (base: any) => ({
-      ...base,
-      width: '100%',
+      cursor: 'pointer',
+      ':active': {
+        backgroundColor: '#6c757d',
+      },
     }),
     multiValue: (base: any) => ({
       ...base,
@@ -110,8 +112,8 @@ const NewRelease: React.FC = () => {
     multiValueRemove: (base: any) => ({
       ...base,
       color: '#fff',
-      '&:hover': {
-        backgroundColor: '#6c757d',
+      ':hover': {
+        backgroundColor: '#dc3545',
         color: '#fff',
       },
     }),
@@ -124,6 +126,23 @@ const NewRelease: React.FC = () => {
       color: '#fff',
     }),
   };
+
+  // Debounce search term
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500); // 500ms delay
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm]);
 
   useEffect(() => {
     const fetchStatuses = async () => {
@@ -142,11 +161,18 @@ const NewRelease: React.FC = () => {
     const fetchTickets = async () => {
       try {
         setLoading(true);
-        // If 'all' is selected, fetch all tickets
-        const data = await jiraService.getTicketsByStatuses(
+
+        // Get base status filter (default to 'Ready for Release' if empty)
+        const statuses =
+          statusFilter.length > 0 ? statusFilter : ['Ready for Release'];
+
+        // Fetch tickets with both status and search filters
+        const data = await jiraService.getTicketsByStatusesAndSearch(
           'DNIO',
-          statusFilter.includes('all') ? [] : statusFilter
+          statuses,
+          debouncedSearchTerm
         );
+
         setTickets(data);
 
         // Extract unique fix versions
@@ -168,7 +194,7 @@ const NewRelease: React.FC = () => {
     };
 
     fetchTickets();
-  }, [statusFilter]);
+  }, [statusFilter, debouncedSearchTerm]); // Trigger on filter or search changes
 
   const handleTicketSelect = (ticketId: string) => {
     setSelectedTickets((prev) => {
@@ -384,16 +410,63 @@ const NewRelease: React.FC = () => {
   };
 
   const filteredTickets = tickets.filter((ticket) => {
-    const matchesSearch =
-      ticket.summary.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ticket.ticketId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ticket.assignee.toLowerCase().includes(searchTerm.toLowerCase());
+    // Enhanced search logic for ticket ID, summary, and assignee
+    const searchTermLower = debouncedSearchTerm.toLowerCase().trim();
+    let matchesSearch = true;
 
+    if (searchTermLower) {
+      // Search in summary
+      const summaryMatch = ticket.summary
+        .toLowerCase()
+        .includes(searchTermLower);
+
+      // Search in assignee
+      const assigneeMatch = ticket.assignee
+        .toLowerCase()
+        .includes(searchTermLower);
+
+      // Search in ticket ID with DNIO prefix handling
+      const ticketIdLower = ticket.ticketId.toLowerCase();
+      let ticketIdMatch = false;
+
+      // Direct match
+      if (ticketIdLower.includes(searchTermLower)) {
+        ticketIdMatch = true;
+      }
+
+      // If search term doesn't start with 'dnio' but ticket ID does, try adding DNIO prefix
+      if (
+        !ticketIdMatch &&
+        !searchTermLower.startsWith('dnio') &&
+        ticketIdLower.startsWith('dnio')
+      ) {
+        const searchWithDnio = `dnio-${searchTermLower}`;
+        if (ticketIdLower.includes(searchWithDnio)) {
+          ticketIdMatch = true;
+        }
+      }
+
+      // If search term starts with 'dnio' but we want to match without prefix too
+      if (!ticketIdMatch && searchTermLower.startsWith('dnio-')) {
+        const searchWithoutDnio = searchTermLower.replace('dnio-', '');
+        if (ticketIdLower.includes(searchWithoutDnio)) {
+          ticketIdMatch = true;
+        }
+      }
+
+      matchesSearch = summaryMatch || ticketIdMatch || assigneeMatch;
+    }
+
+    // Status filtering
+    const matchesStatus =
+      statusFilter.includes('all') || statusFilter.includes(ticket.status);
+
+    // Fix version filtering
     const matchesVersion =
       fixVersionFilter.includes('all') ||
       ticket.fixVersions.some((v) => fixVersionFilter.includes(v));
 
-    return matchesSearch && matchesVersion;
+    return matchesSearch && matchesStatus && matchesVersion;
   });
 
   // Add new component handler
@@ -445,10 +518,7 @@ const NewRelease: React.FC = () => {
                 <div className="card-header border-secondary">
                   <h5 className="mb-0 text-light">Select JIRA Tickets</h5>
                 </div>
-                <div
-                  className="card-body"
-                  style={{ position: 'relative', zIndex: 3 }}
-                >
+                <div className="card-body">
                   <div className="row g-3 mb-3">
                     <div className="col-lg-4" style={{ position: 'relative' }}>
                       <div className="input-group">
@@ -458,7 +528,7 @@ const NewRelease: React.FC = () => {
                         <input
                           type="text"
                           className="form-control bg-dark text-light border-secondary"
-                          placeholder="Search..."
+                          placeholder="Search by ticket number, summary, or assignee (e.g., 1234 or DNIO-1234)..."
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
                         />
@@ -636,10 +706,7 @@ const NewRelease: React.FC = () => {
               </div>
 
               {formData.componentDeliveries.length > 0 && (
-                <div
-                  className="card bg-dark border-secondary mb-4"
-                  style={{ position: 'relative', zIndex: 2 }}
-                >
+                <div className="card bg-dark border-secondary mb-4">
                   <div className="card-header border-secondary d-flex justify-content-between align-items-center">
                     <h5 className="mb-0 text-light">Components Affected</h5>
                     <button

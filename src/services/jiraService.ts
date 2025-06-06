@@ -96,15 +96,27 @@ export const jiraService = {
 
     getTicketsByStatuses: async (projectKey: string = DEFAULT_PROJECT_KEY, statuses: string[]): Promise<JiraTicket[]> => {
         try {
-            // If no statuses provided, empty array, or contains 'all', fetch all tickets
-            const jql = !statuses.length || statuses.includes('all')
-                ? `project=${projectKey}`
-                : `project=${projectKey} AND (${statuses.map(status => `status="${status}"`).join(' OR ')})`;
+            // Build JQL query with proper status handling
+            let jql = `project = ${projectKey}`;
+
+            // Only add status filter if statuses array is not empty
+            if (statuses.length > 0) {
+                // Properly escape quotes in status names and handle case sensitivity
+                const statusConditions = statuses
+                    .map(status => `status = "${status.replace(/"/g, '\\"')}"`)
+                    .join(' OR ');
+                jql += ` AND (${statusConditions})`;
+            }
+
+            // Add ordering
+            jql += ` ORDER BY priority DESC, created DESC`;
+
+            console.log('JQL Query:', jql); // Debug log
 
             const response = await jiraApi.get<JiraApiResponse>('/jira/proxy/search', {
                 params: {
                     jql,
-                    maxResults: 50,
+                    maxResults: 100,
                     fields: [
                         'key',
                         'summary',
@@ -137,7 +149,7 @@ export const jiraService = {
     },
 
     // Update fetchJiraTickets to use the new method
-    fetchJiraTickets: async (statuses: string[] = ['Ready For Release', 'Done', 'In Progress']): Promise<JiraTicket[]> => {
+    fetchJiraTickets: async (statuses: string[] = []): Promise<JiraTicket[]> => {
         try {
             const tickets = await jiraService.getTicketsByStatuses(DEFAULT_PROJECT_KEY, statuses);
             return tickets;
@@ -149,7 +161,7 @@ export const jiraService = {
 
     // Get Ready for Release tickets
     getReadyForReleaseTickets: async (projectKey: string = DEFAULT_PROJECT_KEY): Promise<JiraTicket[]> => {
-        return jiraService.getTicketsByStatuses(projectKey, ['Ready For Release']);
+        return jiraService.getTicketsByStatuses(projectKey, ['Ready for Release']);
     },
 
     // Get In Progress tickets
@@ -292,6 +304,63 @@ export const jiraService = {
             ];
             console.log('Using default statuses:', defaultStatuses);
             return defaultStatuses;
+        }
+    },
+
+    getTicketsByStatusesAndSearch: async (
+        projectKey: string,
+        statuses: string[],
+        searchTerm?: string
+    ): Promise<JiraTicket[]> => {
+        try {
+            let jql = `project=${projectKey}`;
+
+            // Add status filter if provided
+            if (statuses.length > 0 && !statuses.includes('all')) {
+                jql += ` AND status IN (${statuses.map(s => `"${s}"`).join(', ')})`;
+            }
+
+            // Add search filter if provided
+            if (searchTerm) {
+                const cleanSearch = searchTerm.trim().toUpperCase();
+                const isNumeric = /^\d+$/.test(cleanSearch);
+
+                if (isNumeric) {
+                    // Search by ticket number with or without prefix
+                    jql += ` AND (key = "${projectKey}-${cleanSearch}" OR text ~ "${cleanSearch}")`;
+                } else if (cleanSearch.startsWith(`${projectKey}-`)) {
+                    // Exact match for full ticket ID
+                    jql += ` AND key = "${cleanSearch}"`;
+                } else {
+                    // Text search in summary and description
+                    jql += ` AND text ~ "${cleanSearch}"`;
+                }
+            }
+
+            jql += " ORDER BY priority DESC, created DESC";
+
+            const response = await jiraApi.get<JiraApiResponse>('/jira/proxy/search', {
+                params: {
+                    jql,
+                    maxResults: 100,
+                    fields: 'key,summary,status,priority,assignee,created,updated,components,fixVersions'
+                }
+            });
+
+            return response.data.issues.map(issue => ({
+                ticketId: issue.key,
+                summary: issue.fields.summary,
+                status: issue.fields.status.name,
+                priority: issue.fields.priority?.name,
+                assignee: issue.fields.assignee?.displayName || 'Unassigned',
+                created: issue.fields.created,
+                updated: issue.fields.updated,
+                components: issue.fields.components?.map(c => c.name) || [],
+                fixVersions: issue.fields.fixVersions?.map(v => v.name) || []
+            }));
+        } catch (error) {
+            console.error('Error fetching JIRA tickets:', error);
+            throw error;
         }
     }
 }; 

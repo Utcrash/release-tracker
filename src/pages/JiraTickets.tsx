@@ -21,8 +21,10 @@ const JiraTickets: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const initialFetchDone = useRef(false);
   const [jiraQuery, setJiraQuery] = useState<string | null>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState<string[]>([
@@ -95,6 +97,23 @@ const JiraTickets: React.FC = () => {
       color: '#fff',
     }),
   };
+
+  // Debounce search term
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500); // 500ms delay
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm]);
 
   useEffect(() => {
     const fetchStatuses = async () => {
@@ -240,9 +259,48 @@ const JiraTickets: React.FC = () => {
   };
 
   const filteredTickets = tickets.filter((ticket) => {
-    const matchesSearch = ticket.summary
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase());
+    // Enhanced search logic for ticket ID and summary
+    const searchTermLower = debouncedSearchTerm.toLowerCase().trim();
+    let matchesSearch = true;
+
+    if (searchTermLower) {
+      // Search in summary
+      const summaryMatch = ticket.summary
+        .toLowerCase()
+        .includes(searchTermLower);
+
+      // Search in ticket ID with DNIO prefix handling
+      const ticketIdLower = ticket.ticketId.toLowerCase();
+      let ticketIdMatch = false;
+
+      // Direct match
+      if (ticketIdLower.includes(searchTermLower)) {
+        ticketIdMatch = true;
+      }
+
+      // If search term doesn't start with 'dnio' but ticket ID does, try adding DNIO prefix
+      if (
+        !ticketIdMatch &&
+        !searchTermLower.startsWith('dnio') &&
+        ticketIdLower.startsWith('dnio')
+      ) {
+        const searchWithDnio = `dnio-${searchTermLower}`;
+        if (ticketIdLower.includes(searchWithDnio)) {
+          ticketIdMatch = true;
+        }
+      }
+
+      // If search term starts with 'dnio' but we want to match without prefix too
+      if (!ticketIdMatch && searchTermLower.startsWith('dnio-')) {
+        const searchWithoutDnio = searchTermLower.replace('dnio-', '');
+        if (ticketIdLower.includes(searchWithoutDnio)) {
+          ticketIdMatch = true;
+        }
+      }
+
+      matchesSearch = summaryMatch || ticketIdMatch;
+    }
+
     const matchesPriority =
       priorityFilter.includes('all') ||
       priorityFilter.some((p) => p === ticket.priority);
@@ -390,7 +448,7 @@ const JiraTickets: React.FC = () => {
                 <input
                   type="text"
                   className="form-control bg-dark text-light border-secondary"
-                  placeholder="Search tickets..."
+                  placeholder="Search by ticket number or summary (e.g., 1234 or DNIO-1234)..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />

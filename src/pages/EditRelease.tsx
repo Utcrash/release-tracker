@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import Select, { MultiValue } from 'react-select';
 import { Release, ComponentDelivery, JiraTicket } from '../types';
@@ -6,6 +6,7 @@ import { releaseService, UpdateReleaseDto } from '../services/releaseService';
 import { jiraService } from '../services/jiraService';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '../styles/darkTheme.css';
+import './JiraTickets.css';
 
 type RouteParams = {
   id?: string;
@@ -39,6 +40,11 @@ interface JiraTicketOption {
   ticket: JiraTicket;
 }
 
+interface SelectOption {
+  value: string;
+  label: string;
+}
+
 const EditRelease: React.FC = () => {
   const { id } = useParams<RouteParams>();
   const navigate = useNavigate();
@@ -50,9 +56,10 @@ const EditRelease: React.FC = () => {
   const [availableJiraTickets, setAvailableJiraTickets] = useState<
     JiraTicket[]
   >([]);
+  const [allJiraTickets, setAllJiraTickets] = useState<JiraTicket[]>([]);
   const [isLoadingJiraTickets, setIsLoadingJiraTickets] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string[]>([
-    'Ready For Release',
+    'Ready for Release',
   ]);
   const [fixVersionFilter, setFixVersionFilter] = useState<string[]>(['all']);
   const [availableFixVersions, setAvailableFixVersions] = useState<string[]>(
@@ -71,6 +78,28 @@ const EditRelease: React.FC = () => {
   });
   const [showNewComponentModal, setShowNewComponentModal] = useState(false);
   const [newComponentName, setNewComponentName] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debounce search term
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm]);
+
+  // Server-side filtering is now handled in fetchJiraTickets useEffect
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,47 +155,7 @@ const EditRelease: React.FC = () => {
     }
   };
 
-  const handleJiraTicketSearch = async (searchQuery: string) => {
-    if (!searchQuery.trim()) {
-      applyFilters(availableJiraTickets);
-      return;
-    }
-
-    try {
-      setIsLoadingJiraTickets(true);
-      const response = await jiraService.getAllTickets();
-      const filteredTickets = response.filter(
-        (ticket) =>
-          ticket.ticketId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          ticket.summary.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      applyFilters(filteredTickets);
-    } catch (error) {
-      console.error('Error searching JIRA tickets:', error);
-    } finally {
-      setIsLoadingJiraTickets(false);
-    }
-  };
-
-  const applyFilters = (tickets: JiraTicket[]) => {
-    let filtered = [...tickets];
-
-    // Apply status filter
-    if (!statusFilter.includes('all')) {
-      filtered = filtered.filter((ticket) =>
-        statusFilter.includes(ticket.status)
-      );
-    }
-
-    // Apply fix version filter
-    if (!fixVersionFilter.includes('all')) {
-      filtered = filtered.filter((ticket) =>
-        ticket.fixVersions.some((version) => fixVersionFilter.includes(version))
-      );
-    }
-
-    setAvailableJiraTickets(filtered);
-  };
+  // Remove old applyFilters function since we now use server-side filtering
 
   // Custom styles for react-select
   const selectStyles = {
@@ -235,17 +224,13 @@ const EditRelease: React.FC = () => {
     })),
   ];
 
-  const handleStatusChange = (selectedOptions: MultiValue<Option>) => {
-    if (!selectedOptions || selectedOptions.length === 0) {
-      setStatusFilter(['all']);
-      return;
-    }
-    const values = selectedOptions.map((option) => option.value);
-    if (values.includes('all')) {
-      setStatusFilter(['all']);
-    } else {
-      setStatusFilter(values);
-    }
+  const handleStatusFilterChange = (
+    selectedOptions: MultiValue<SelectOption> | null
+  ) => {
+    const newStatuses = selectedOptions
+      ? selectedOptions.map((option) => option.value)
+      : [];
+    setStatusFilter(newStatuses);
   };
 
   const handleFixVersionChange = (selectedOptions: MultiValue<Option>) => {
@@ -343,10 +328,11 @@ const EditRelease: React.FC = () => {
   const fetchJiraTickets = async () => {
     try {
       setIsLoadingJiraTickets(true);
-      // If 'all' is selected or no statuses selected, fetch all tickets
-      const data = await jiraService.getTicketsByStatuses(
+
+      const data = await jiraService.getTicketsByStatusesAndSearch(
         'DNIO',
-        !statusFilter.length || statusFilter.includes('all') ? [] : statusFilter
+        statusFilter,
+        debouncedSearchTerm
       );
 
       // Extract all fix versions
@@ -358,6 +344,7 @@ const EditRelease: React.FC = () => {
       });
 
       setAvailableFixVersions(Array.from(fixVersions).sort());
+      setAllJiraTickets(data);
       setAvailableJiraTickets(data);
     } catch (error) {
       console.error('Error fetching JIRA tickets:', error);
@@ -365,6 +352,10 @@ const EditRelease: React.FC = () => {
       setIsLoadingJiraTickets(false);
     }
   };
+
+  useEffect(() => {
+    fetchJiraTickets();
+  }, [statusFilter, debouncedSearchTerm]);
 
   const fetchStatuses = async () => {
     try {
@@ -450,7 +441,7 @@ const EditRelease: React.FC = () => {
             className={`badge me-2 ${
               data.ticket.status === 'Done'
                 ? 'bg-success'
-                : data.ticket.status === 'Ready For Release'
+                : data.ticket.status === 'Ready for Release'
                 ? 'bg-info'
                 : data.ticket.status === 'In Progress'
                 ? 'bg-warning'
@@ -484,446 +475,550 @@ const EditRelease: React.FC = () => {
     }
   };
 
+  const handleSelectAll = () => {
+    const newSelectedTickets = [...formData.jiraTickets];
+    availableJiraTickets.forEach((ticket) => {
+      if (!newSelectedTickets.some((t) => t.ticketId === ticket.ticketId)) {
+        newSelectedTickets.push(ticket);
+      }
+    });
+    setFormData((prev) => ({
+      ...prev,
+      jiraTickets: newSelectedTickets,
+    }));
+  };
+
+  const handleDeselectAll = () => {
+    setFormData((prev) => ({
+      ...prev,
+      jiraTickets: [],
+    }));
+  };
+
   return (
-    <div className="dark-theme min-vh-100 py-4">
-      <div className="container">
-        <div className="row mb-4">
-          <div className="col">
-            <h1 className="text-light mb-2">
-              Edit Release: {release?.version}
-            </h1>
-            <p className="text-light-muted mb-4">
-              Update the details of this release
-            </p>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit}>
-          <div className="row">
-            <div className="col-12">
-              <div className="card bg-dark border-secondary mb-4">
-                <div className="card-header border-secondary">
-                  <h5 className="mb-0 text-light">Release Details</h5>
-                </div>
-                <div className="card-body">
-                  <div className="row">
-                    <div className="col-md-6 mb-3">
-                      <label
-                        htmlFor="version"
-                        className="form-label text-light"
-                      >
-                        Version Number <span className="text-danger">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control bg-dark text-light border-secondary"
-                        id="version"
-                        name="version"
-                        value={formData.version}
-                        onChange={handleInputChange}
-                        placeholder="e.g. 1.2.3"
-                        required
-                      />
-                    </div>
-
-                    <div className="col-md-6 mb-3">
-                      <label
-                        htmlFor="releaseDate"
-                        className="form-label text-light"
-                      >
-                        Release Date
-                      </label>
-                      <input
-                        type="date"
-                        className="form-control bg-dark text-light border-secondary"
-                        id="releaseDate"
-                        name="releaseDate"
-                        value={formData.releaseDate}
-                        onChange={handleInputChange}
-                      />
-                    </div>
-
-                    <div className="col-md-6 mb-3">
-                      <label htmlFor="status" className="form-label text-light">
-                        Status
-                      </label>
-                      <select
-                        className="form-select bg-dark text-light border-secondary"
-                        id="status"
-                        name="status"
-                        value={formData.status}
-                        onChange={handleInputChange}
-                      >
-                        <option value="Planned">Planned</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="Released">Released</option>
-                        <option value="Cancelled">Cancelled</option>
-                      </select>
-                    </div>
-
-                    <div className="col-md-6 mb-3">
-                      <label
-                        htmlFor="customer"
-                        className="form-label text-light"
-                      >
-                        Customer
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control bg-dark text-light border-secondary"
-                        id="customer"
-                        name="customer"
-                        value={formData.customer}
-                        onChange={handleInputChange}
-                        placeholder="Customer name (optional)"
-                      />
-                    </div>
-
-                    <div className="col-12 mb-3">
-                      <label htmlFor="notes" className="form-label text-light">
-                        Release Notes
-                      </label>
-                      <textarea
-                        className="form-control bg-dark text-light border-secondary"
-                        id="notes"
-                        name="notes"
-                        rows={3}
-                        value={formData.notes}
-                        onChange={handleInputChange}
-                        placeholder="General notes about this release"
-                      ></textarea>
-                    </div>
+    <div className="container-fluid dark-theme p-4">
+      <div className="row">
+        <div className="col">
+          <h1>Edit Release</h1>
+          {error && <div className="alert alert-danger">{error}</div>}
+          <form onSubmit={handleSubmit}>
+            <div className="row">
+              <div className="col-12">
+                <div className="card bg-dark border-secondary mb-4">
+                  <div className="card-header border-secondary">
+                    <h5 className="mb-0 text-light">Release Details</h5>
                   </div>
-                </div>
-              </div>
-
-              <div className="card bg-dark border-secondary mb-4">
-                <div className="card-header border-secondary d-flex justify-content-between align-items-center">
-                  <h5 className="mb-0 text-light">JIRA Tickets</h5>
-                  <span className="badge bg-primary">
-                    {formData.jiraTickets.length} selected
-                  </span>
-                </div>
-                <div className="card-body">
-                  <div className="row mb-3">
-                    <div className="col-md-6">
-                      <label className="form-label text-light">
-                        Status Filter
-                      </label>
-                      <Select<Option, true>
-                        isMulti
-                        options={statusOptions}
-                        styles={selectStyles}
-                        className="react-select-container"
-                        classNamePrefix="react-select"
-                        value={statusOptions.filter((option) =>
-                          statusFilter.includes(option.value)
-                        )}
-                        onChange={handleStatusChange}
-                        placeholder="Select statuses..."
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label text-light">
-                        Fix Version Filter
-                      </label>
-                      <Select<Option, true>
-                        isMulti
-                        options={fixVersionOptions}
-                        styles={selectStyles}
-                        className="react-select-container"
-                        classNamePrefix="react-select"
-                        value={fixVersionOptions.filter((option) =>
-                          fixVersionFilter.includes(option.value)
-                        )}
-                        onChange={handleFixVersionChange}
-                        placeholder="Select versions..."
-                      />
-                    </div>
-                  </div>
-
-                  <div className="row">
-                    <div className="col-12">
-                      <label className="form-label text-light">
-                        Select JIRA Tickets
-                      </label>
-                      {isLoadingJiraTickets ? (
-                        <div className="text-center py-3">
-                          <span
-                            className="spinner-border spinner-border-sm text-light me-2"
-                            role="status"
-                          ></span>
-                          <span className="text-light">Loading tickets...</span>
-                        </div>
-                      ) : (
-                        <Select<JiraTicketOption, true>
-                          isMulti
-                          options={jiraTicketOptions}
-                          styles={{
-                            ...selectStyles,
-                            option: () => ({}), // Remove default option styling
-                            multiValue: (base) => ({
-                              ...base,
-                              backgroundColor: '#2c3034',
-                              borderRadius: '4px',
-                              padding: '2px',
-                            }),
-                            multiValueLabel: (base) => ({
-                              ...base,
-                              color: '#fff',
-                              fontSize: '0.875rem',
-                            }),
-                            multiValueRemove: (base) => ({
-                              ...base,
-                              color: '#fff',
-                              ':hover': {
-                                backgroundColor: '#dc3545',
-                                color: '#fff',
-                              },
-                            }),
-                          }}
-                          className="react-select-container"
-                          classNamePrefix="react-select"
-                          value={jiraTicketOptions.filter((option) =>
-                            formData.jiraTickets.some(
-                              (t) => t.ticketId === option.value
-                            )
-                          )}
-                          onChange={handleJiraTicketChange}
-                          placeholder="Search and select JIRA tickets..."
-                          components={{
-                            Option: customOption,
-                          }}
-                          filterOption={(option, input) => {
-                            const searchStr = input.toLowerCase();
-                            return (
-                              option.data.ticket.ticketId
-                                .toLowerCase()
-                                .includes(searchStr) ||
-                              option.data.ticket.summary
-                                .toLowerCase()
-                                .includes(searchStr)
-                            );
-                          }}
+                  <div className="card-body">
+                    <div className="row">
+                      <div className="col-md-6 mb-3">
+                        <label
+                          htmlFor="version"
+                          className="form-label text-light"
+                        >
+                          Version Number <span className="text-danger">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control bg-dark text-light border-secondary"
+                          id="version"
+                          name="version"
+                          value={formData.version}
+                          onChange={handleInputChange}
+                          placeholder="e.g. 1.2.3"
+                          required
                         />
-                      )}
-                    </div>
-                  </div>
+                      </div>
 
-                  {formData.jiraTickets.length > 0 && (
-                    <div className="mt-3">
-                      <h6 className="text-light mb-2">Selected Tickets</h6>
-                      <div className="list-group">
-                        {formData.jiraTickets.map((ticket) => (
-                          <div
-                            key={ticket.ticketId}
-                            className="list-group-item bg-dark text-light border-secondary d-flex justify-content-between align-items-center"
-                          >
-                            <div>
-                              <div className="d-flex align-items-center">
-                                <a
-                                  href={`https://appveen.atlassian.net/browse/${ticket.ticketId}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-decoration-none me-2"
-                                >
-                                  {ticket.ticketId}
-                                </a>
-                                <span
-                                  className={`badge me-2 ${
-                                    ticket.status === 'Done'
-                                      ? 'bg-success'
-                                      : ticket.status === 'Ready For Release'
-                                      ? 'bg-info'
-                                      : ticket.status === 'In Progress'
-                                      ? 'bg-warning'
-                                      : 'bg-secondary'
-                                  }`}
-                                >
-                                  {ticket.status}
-                                </span>
-                              </div>
-                              <div className="small text-muted">
-                                {ticket.summary}
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-danger"
-                              onClick={() => {
-                                setFormData((prev) => ({
-                                  ...prev,
-                                  jiraTickets: prev.jiraTickets.filter(
-                                    (t) => t.ticketId !== ticket.ticketId
-                                  ),
-                                }));
-                              }}
-                            >
-                              <i className="bi bi-x"></i>
-                            </button>
-                          </div>
-                        ))}
+                      <div className="col-md-6 mb-3">
+                        <label
+                          htmlFor="releaseDate"
+                          className="form-label text-light"
+                        >
+                          Release Date
+                        </label>
+                        <input
+                          type="date"
+                          className="form-control bg-dark text-light border-secondary"
+                          id="releaseDate"
+                          name="releaseDate"
+                          value={formData.releaseDate}
+                          onChange={handleInputChange}
+                        />
+                      </div>
+
+                      <div className="col-md-6 mb-3">
+                        <label
+                          htmlFor="status"
+                          className="form-label text-light"
+                        >
+                          Status
+                        </label>
+                        <select
+                          className="form-select bg-dark text-light border-secondary"
+                          id="status"
+                          name="status"
+                          value={formData.status}
+                          onChange={handleInputChange}
+                        >
+                          <option value="Planned">Planned</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="Released">Released</option>
+                          <option value="Cancelled">Cancelled</option>
+                        </select>
+                      </div>
+
+                      <div className="col-md-6 mb-3">
+                        <label
+                          htmlFor="customer"
+                          className="form-label text-light"
+                        >
+                          Customer
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control bg-dark text-light border-secondary"
+                          id="customer"
+                          name="customer"
+                          value={formData.customer}
+                          onChange={handleInputChange}
+                          placeholder="Customer name (optional)"
+                        />
+                      </div>
+
+                      <div className="col-12 mb-3">
+                        <label
+                          htmlFor="notes"
+                          className="form-label text-light"
+                        >
+                          Release Notes
+                        </label>
+                        <textarea
+                          className="form-control bg-dark text-light border-secondary"
+                          id="notes"
+                          name="notes"
+                          rows={3}
+                          value={formData.notes}
+                          onChange={handleInputChange}
+                          placeholder="General notes about this release"
+                        ></textarea>
                       </div>
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
 
-              <div className="card bg-dark border-secondary mb-4">
-                <div className="card-header border-secondary d-flex justify-content-between align-items-center">
-                  <h5 className="mb-0 text-light">Components Affected</h5>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-outline-success"
-                    onClick={() => setShowNewComponentModal(true)}
-                  >
-                    <i className="bi bi-plus-lg me-1"></i>
-                    Add Component
-                  </button>
-                </div>
-                <div className="card-body">
-                  <div className="table-responsive">
-                    <table className="table table-dark table-bordered mb-0">
-                      <thead>
-                        <tr className="border-secondary">
-                          <th className="border-secondary">Component</th>
-                          <th className="border-secondary">DockerHub Link</th>
-                          <th className="border-secondary">E-Delivery Link</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {formData.componentDeliveries.map(
-                          (component, index) => (
-                            <tr key={index} className="border-secondary">
-                              <td className="border-secondary text-light">
-                                {component.name}
-                              </td>
-                              <td className="border-secondary">
-                                <input
-                                  type="text"
-                                  className="form-control bg-dark text-light border-secondary"
-                                  value={component.dockerHubLink || ''}
-                                  onChange={(e) =>
-                                    handleComponentLinkChange(
-                                      index,
-                                      'dockerHubLink',
-                                      e.target.value
-                                    )
-                                  }
-                                  placeholder="DockerHub URL"
-                                />
-                              </td>
-                              <td className="border-secondary">
-                                <input
-                                  type="text"
-                                  className="form-control bg-dark text-light border-secondary"
-                                  value={component.eDeliveryLink || ''}
-                                  onChange={(e) =>
-                                    handleComponentLinkChange(
-                                      index,
-                                      'eDeliveryLink',
-                                      e.target.value
-                                    )
-                                  }
-                                  placeholder="E-Delivery URL"
-                                />
+                <div className="card bg-dark border-secondary mb-4">
+                  <div className="card-header border-secondary d-flex justify-content-between align-items-center">
+                    <h5 className="mb-0 text-light">JIRA Tickets</h5>
+                    <span className="badge bg-primary">
+                      {formData.jiraTickets.length} selected
+                    </span>
+                  </div>
+                  <div className="card-body">
+                    <div className="row g-3 mb-3">
+                      <div
+                        className="col-lg-4"
+                        style={{ position: 'relative' }}
+                      >
+                        <div className="input-group">
+                          <span className="input-group-text bg-dark border-secondary">
+                            <i className="bi bi-search text-light"></i>
+                          </span>
+                          <input
+                            type="text"
+                            className="form-control bg-dark text-light border-secondary"
+                            placeholder="Search by ticket number, summary, or assignee (e.g., 1234 or DNIO-1234)..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div
+                        className="col-lg-4"
+                        style={{ position: 'relative' }}
+                      >
+                        <Select
+                          isMulti
+                          options={statusOptions}
+                          value={
+                            statusFilter.length === 0
+                              ? []
+                              : statusOptions.filter((option) =>
+                                  statusFilter.includes(option.value)
+                                )
+                          }
+                          onChange={handleStatusFilterChange}
+                          className="react-select-container"
+                          classNamePrefix="react-select"
+                          styles={selectStyles}
+                          placeholder="Select Statuses"
+                          menuPortalTarget={document.body}
+                          menuPosition="fixed"
+                        />
+                      </div>
+
+                      {/* Keep existing fix version filter */}
+                      <div
+                        className="col-lg-4"
+                        style={{ position: 'relative' }}
+                      >
+                        <Select
+                          isMulti
+                          options={fixVersionOptions}
+                          value={
+                            fixVersionFilter.includes('all')
+                              ? []
+                              : fixVersionOptions.filter((option) =>
+                                  fixVersionFilter.includes(option.value)
+                                )
+                          }
+                          onChange={handleFixVersionChange}
+                          className="react-select-container"
+                          classNamePrefix="react-select"
+                          styles={selectStyles}
+                          placeholder="Select Fix Versions"
+                          menuPortalTarget={document.body}
+                          menuPosition="fixed"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="d-flex justify-content-between mb-3">
+                      <div>
+                        <span className="text-light-muted me-2">
+                          {formData.jiraTickets.length} tickets selected
+                        </span>
+                      </div>
+                      <div>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-light me-2"
+                          onClick={handleSelectAll}
+                        >
+                          Select All
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary"
+                          onClick={handleDeselectAll}
+                        >
+                          Deselect All
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="table-responsive">
+                      <table className="table table-dark table-hover mb-0">
+                        <thead>
+                          <tr className="border-secondary">
+                            <th
+                              className="border-secondary"
+                              style={{ width: '40px' }}
+                            ></th>
+                            <th className="border-secondary">Ticket ID</th>
+                            <th className="border-secondary">Summary</th>
+                            <th className="border-secondary">Status</th>
+                            <th className="border-secondary">Assignee</th>
+                            <th className="border-secondary">Components</th>
+                            <th className="border-secondary">Fix Versions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {isLoadingJiraTickets ? (
+                            <tr>
+                              <td
+                                colSpan={7}
+                                className="text-center p-4 text-light-muted border-secondary"
+                              >
+                                <span
+                                  className="spinner-border spinner-border-sm text-light me-2"
+                                  role="status"
+                                ></span>
+                                Loading tickets...
                               </td>
                             </tr>
-                          )
+                          ) : availableJiraTickets.length === 0 ? (
+                            <tr>
+                              <td
+                                colSpan={7}
+                                className="text-center p-4 text-light-muted border-secondary"
+                              >
+                                No tickets found matching your criteria
+                              </td>
+                            </tr>
+                          ) : (
+                            availableJiraTickets.map((ticket) => (
+                              <tr
+                                key={ticket.ticketId}
+                                className={`border-secondary ${
+                                  formData.jiraTickets.some(
+                                    (t) => t.ticketId === ticket.ticketId
+                                  )
+                                    ? 'table-active'
+                                    : ''
+                                }`}
+                                onClick={() => handleJiraTicketToggle(ticket)}
+                                style={{ cursor: 'pointer' }}
+                              >
+                                <td className="border-secondary">
+                                  <div className="form-check">
+                                    <input
+                                      type="checkbox"
+                                      className="form-check-input"
+                                      checked={formData.jiraTickets.some(
+                                        (t) => t.ticketId === ticket.ticketId
+                                      )}
+                                      onChange={() =>
+                                        handleJiraTicketToggle(ticket)
+                                      }
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  </div>
+                                </td>
+                                <td className="border-secondary">
+                                  <a
+                                    href={`${process.env.REACT_APP_JIRA_BASE_URL}/browse/${ticket.ticketId}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-info text-decoration-none"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {ticket.ticketId}
+                                  </a>
+                                </td>
+                                <td className="border-secondary text-light">
+                                  {ticket.summary}
+                                </td>
+                                <td className="border-secondary text-light">
+                                  {ticket.status}
+                                </td>
+                                <td className="border-secondary text-light">
+                                  {ticket.assignee}
+                                </td>
+                                <td className="border-secondary">
+                                  {ticket.components.map((component, index) => (
+                                    <span
+                                      key={index}
+                                      className="badge bg-dark border border-success text-success me-1"
+                                    >
+                                      {component}
+                                    </span>
+                                  ))}
+                                </td>
+                                <td className="border-secondary">
+                                  {ticket.fixVersions.map((version, index) => (
+                                    <span
+                                      key={index}
+                                      className="badge bg-dark border border-info text-info me-1"
+                                    >
+                                      {version}
+                                    </span>
+                                  ))}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card bg-dark border-secondary mb-4">
+                  <div className="card-header border-secondary d-flex justify-content-between align-items-center">
+                    <h5 className="mb-0 text-light">Components Affected</h5>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-success"
+                      onClick={() => setShowNewComponentModal(true)}
+                    >
+                      <i className="bi bi-plus-lg me-1"></i>
+                      Add Component
+                    </button>
+                  </div>
+                  <div className="card-body">
+                    <div className="table-responsive">
+                      <table className="table table-dark table-bordered mb-0">
+                        <thead>
+                          <tr className="border-secondary">
+                            <th className="border-secondary">Component</th>
+                            <th className="border-secondary">DockerHub Link</th>
+                            <th className="border-secondary">
+                              E-Delivery Link
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {formData.componentDeliveries.map(
+                            (component, index) => (
+                              <tr key={index} className="border-secondary">
+                                <td className="border-secondary text-light">
+                                  {component.name}
+                                </td>
+                                <td className="border-secondary">
+                                  <input
+                                    type="text"
+                                    className="form-control bg-dark text-light border-secondary"
+                                    value={component.dockerHubLink || ''}
+                                    onChange={(e) =>
+                                      handleComponentLinkChange(
+                                        index,
+                                        'dockerHubLink',
+                                        e.target.value
+                                      )
+                                    }
+                                    placeholder="DockerHub URL"
+                                  />
+                                </td>
+                                <td className="border-secondary">
+                                  <input
+                                    type="text"
+                                    className="form-control bg-dark text-light border-secondary"
+                                    value={component.eDeliveryLink || ''}
+                                    onChange={(e) =>
+                                      handleComponentLinkChange(
+                                        index,
+                                        'eDeliveryLink',
+                                        e.target.value
+                                      )
+                                    }
+                                    placeholder="E-Delivery URL"
+                                  />
+                                </td>
+                              </tr>
+                            )
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card bg-dark border-secondary">
+                  <div className="card-body">
+                    <div className="d-flex justify-content-between">
+                      <Link
+                        to={`/releases/${id}`}
+                        className="btn btn-outline-secondary"
+                      >
+                        Cancel
+                      </Link>
+                      <button
+                        type="submit"
+                        className="btn btn-primary"
+                        disabled={submitting || !formData.version}
+                      >
+                        {submitting ? (
+                          <>
+                            <span
+                              className="spinner-border spinner-border-sm me-1"
+                              role="status"
+                              aria-hidden="true"
+                            ></span>
+                            Saving...
+                          </>
+                        ) : (
+                          'Save Changes'
                         )}
-                      </tbody>
-                    </table>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
+            </div>
+          </form>
 
-              <div className="card bg-dark border-secondary">
-                <div className="card-body">
-                  <div className="d-flex justify-content-between">
-                    <Link
-                      to={`/releases/${id}`}
-                      className="btn btn-outline-secondary"
+          {/* Display Selected Tickets Section */}
+          <div className="mb-4">
+            <h4>Selected Tickets ({formData.jiraTickets.length})</h4>
+            <div className="table-responsive">
+              <table className="table table-dark table-hover">
+                <thead>
+                  <tr>
+                    <th>Ticket ID</th>
+                    <th>Summary</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {formData.jiraTickets.map((ticket) => (
+                    <tr key={ticket.ticketId}>
+                      <td>{ticket.ticketId}</td>
+                      <td>{ticket.summary}</td>
+                      <td>{ticket.status}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-danger btn-sm"
+                          onClick={() => handleJiraTicketToggle(ticket)}
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Add Component Modal */}
+          {showNewComponentModal && (
+            <div
+              className="modal fade show"
+              style={{ display: 'block' }}
+              tabIndex={-1}
+            >
+              <div className="modal-dialog modal-dialog-centered">
+                <div className="modal-content bg-dark border-secondary">
+                  <div className="modal-header border-secondary">
+                    <h5 className="modal-title text-light">
+                      Add New Component
+                    </h5>
+                    <button
+                      type="button"
+                      className="btn-close btn-close-white"
+                      onClick={() => setShowNewComponentModal(false)}
+                    ></button>
+                  </div>
+                  <div className="modal-body">
+                    <div className="mb-3">
+                      <label className="form-label text-light">
+                        Component Name
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control bg-dark text-light border-secondary"
+                        value={newComponentName}
+                        onChange={(e) => setNewComponentName(e.target.value)}
+                        placeholder="Enter component name"
+                      />
+                    </div>
+                  </div>
+                  <div className="modal-footer border-secondary">
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => setShowNewComponentModal(false)}
                     >
                       Cancel
-                    </Link>
+                    </button>
                     <button
-                      type="submit"
-                      className="btn btn-primary"
-                      disabled={submitting || !formData.version}
+                      type="button"
+                      className="btn btn-success"
+                      onClick={handleAddNewComponent}
+                      disabled={!newComponentName.trim()}
                     >
-                      {submitting ? (
-                        <>
-                          <span
-                            className="spinner-border spinner-border-sm me-1"
-                            role="status"
-                            aria-hidden="true"
-                          ></span>
-                          Saving...
-                        </>
-                      ) : (
-                        'Save Changes'
-                      )}
+                      Add Component
                     </button>
                   </div>
                 </div>
               </div>
+              <div className="modal-backdrop fade show"></div>
             </div>
-          </div>
-        </form>
-
-        {/* Add Component Modal */}
-        {showNewComponentModal && (
-          <div
-            className="modal fade show"
-            style={{ display: 'block' }}
-            tabIndex={-1}
-          >
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content bg-dark border-secondary">
-                <div className="modal-header border-secondary">
-                  <h5 className="modal-title text-light">Add New Component</h5>
-                  <button
-                    type="button"
-                    className="btn-close btn-close-white"
-                    onClick={() => setShowNewComponentModal(false)}
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  <div className="mb-3">
-                    <label className="form-label text-light">
-                      Component Name
-                    </label>
-                    <input
-                      type="text"
-                      className="form-control bg-dark text-light border-secondary"
-                      value={newComponentName}
-                      onChange={(e) => setNewComponentName(e.target.value)}
-                      placeholder="Enter component name"
-                    />
-                  </div>
-                </div>
-                <div className="modal-footer border-secondary">
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => setShowNewComponentModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-success"
-                    onClick={handleAddNewComponent}
-                    disabled={!newComponentName.trim()}
-                  >
-                    Add Component
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div className="modal-backdrop fade show"></div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
