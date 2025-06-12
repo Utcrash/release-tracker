@@ -18,6 +18,153 @@ interface SelectOption {
   label: string;
 }
 
+interface JiraTicketTableProps {
+  tickets: JiraTicket[];
+  selectedTickets: Record<string, boolean>;
+  onTicketSelect: (ticketId: string) => void;
+  loading: boolean;
+  onSelectAll: () => void;
+  onDeselectAll: () => void;
+}
+
+const JiraTicketTable: React.FC<JiraTicketTableProps> = ({
+  tickets,
+  selectedTickets,
+  onTicketSelect,
+  loading,
+  onSelectAll,
+  onDeselectAll,
+}) => {
+  return (
+    <>
+      <div className="d-flex justify-content-between mb-3">
+        <div>
+          <span className="text-light-muted me-2">
+            {
+              Object.keys(selectedTickets).filter((key) => selectedTickets[key])
+                .length
+            }{' '}
+            tickets selected
+          </span>
+        </div>
+        <div>
+          <button
+            type="button"
+            className="btn btn-sm btn-outline-light me-2"
+            onClick={onSelectAll}
+          >
+            Select All
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm btn-outline-secondary"
+            onClick={onDeselectAll}
+          >
+            Deselect All
+          </button>
+        </div>
+      </div>
+
+      <div className="table-responsive">
+        <table className="table table-dark table-hover border-secondary">
+          <thead>
+            <tr>
+              <th style={{ width: '50px' }}></th>
+              <th>Ticket ID</th>
+              <th>Summary</th>
+              <th>Status</th>
+              <th>Priority</th>
+              <th>Assignee</th>
+              <th>Components</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={7} className="text-center p-4 text-light-muted">
+                  <span
+                    className="spinner-border spinner-border-sm text-light me-2"
+                    role="status"
+                  ></span>
+                  Loading tickets...
+                </td>
+              </tr>
+            ) : tickets.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="text-center p-4 text-light-muted">
+                  No tickets found matching your criteria
+                </td>
+              </tr>
+            ) : (
+              tickets.map((ticket) => (
+                <tr
+                  key={ticket.ticketId}
+                  onClick={() => onTicketSelect(ticket.ticketId)}
+                  className={
+                    selectedTickets[ticket.ticketId] ? 'table-active' : ''
+                  }
+                  style={{ cursor: 'pointer' }}
+                >
+                  <td className="text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedTickets[ticket.ticketId] || false}
+                      onChange={() => onTicketSelect(ticket.ticketId)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="form-check-input"
+                    />
+                  </td>
+                  <td>
+                    <a
+                      href={`https://appveen.atlassian.net/browse/${ticket.ticketId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {ticket.ticketId}
+                    </a>
+                  </td>
+                  <td>{ticket.summary}</td>
+                  <td>
+                    <span
+                      className={`badge ${
+                        ticket.status === 'Done'
+                          ? 'bg-success'
+                          : ticket.status === 'Ready for Release'
+                          ? 'bg-info'
+                          : ticket.status === 'In Progress'
+                          ? 'bg-warning'
+                          : 'bg-secondary'
+                      }`}
+                    >
+                      {ticket.status}
+                    </span>
+                  </td>
+                  <td>
+                    <span
+                      className={`badge ${
+                        ticket.priority === 'High'
+                          ? 'bg-danger'
+                          : ticket.priority === 'Medium'
+                          ? 'bg-warning'
+                          : 'bg-info'
+                      }`}
+                    >
+                      {ticket.priority}
+                    </span>
+                  </td>
+                  <td>{ticket.assignee}</td>
+                  <td>{ticket.components.join(', ')}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+};
+
 interface NewReleaseFormData {
   version: string;
   releaseDate: string;
@@ -32,6 +179,9 @@ const NewRelease: React.FC = () => {
   const [selectedTickets, setSelectedTickets] = useState<
     Record<string, boolean>
   >({});
+  const [selectedTicketDetails, setSelectedTicketDetails] = useState<
+    JiraTicket[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -175,6 +325,28 @@ const NewRelease: React.FC = () => {
 
         setTickets(data);
 
+        // Update selectedTickets to remove any tickets that no longer exist in the results
+        setSelectedTickets((prev) => {
+          const newSelectedTickets = { ...prev };
+          Object.keys(newSelectedTickets).forEach((ticketId) => {
+            if (!data.some((t) => t.ticketId === ticketId)) {
+              delete newSelectedTickets[ticketId];
+            }
+          });
+          return newSelectedTickets;
+        });
+
+        // Update selectedTicketDetails to keep only tickets that are still selected
+        setSelectedTicketDetails((prev) => {
+          // Keep existing selected tickets that are not in the current search results
+          const existingSelected = prev.filter(
+            (t) => !data.some((newT) => newT.ticketId === t.ticketId)
+          );
+          // Add newly fetched tickets that are selected
+          const newlySelected = data.filter((t) => selectedTickets[t.ticketId]);
+          return [...existingSelected, ...newlySelected];
+        });
+
         // Extract unique fix versions
         const versions = new Set<string>();
         data.forEach((ticket: JiraTicket) => {
@@ -194,78 +366,48 @@ const NewRelease: React.FC = () => {
     };
 
     fetchTickets();
-  }, [statusFilter, debouncedSearchTerm]); // Trigger on filter or search changes
+  }, [statusFilter, debouncedSearchTerm]);
 
   const handleTicketSelect = (ticketId: string) => {
+    const ticket = tickets.find((t) => t.ticketId === ticketId);
+    if (!ticket) return;
+
     setSelectedTickets((prev) => {
       const newSelectedTickets = {
         ...prev,
         [ticketId]: !prev[ticketId],
       };
 
-      // Update component deliveries when tickets are selected/deselected
-      updateComponentDeliveries(newSelectedTickets);
+      // Update selectedTicketDetails based on the new selection
+      setSelectedTicketDetails((currentDetails) => {
+        if (newSelectedTickets[ticketId]) {
+          // Add ticket if it's not already in the details
+          if (!currentDetails.some((t) => t.ticketId === ticketId)) {
+            return [...currentDetails, ticket];
+          }
+        } else {
+          // Remove ticket if it's being deselected
+          return currentDetails.filter((t) => t.ticketId !== ticketId);
+        }
+        return currentDetails;
+      });
 
       return newSelectedTickets;
     });
   };
 
-  const updateComponentDeliveries = (
-    selectedTicketsMap: Record<string, boolean>
-  ) => {
-    const selectedTicketIds = Object.keys(selectedTicketsMap).filter(
-      (id) => selectedTicketsMap[id]
-    );
-    const selectedTicketData = tickets.filter((ticket) =>
-      selectedTicketIds.includes(ticket.ticketId)
-    );
-
-    // Extract unique components from selected tickets
-    const uniqueComponents = new Set<string>();
-    selectedTicketData.forEach((ticket) => {
-      ticket.components.forEach((component) => {
-        uniqueComponents.add(component);
-      });
-    });
-
-    // Create or update component deliveries
-    const existingComponents = formData.componentDeliveries.reduce(
-      (acc, comp) => {
-        acc[comp.name] = comp;
-        return acc;
-      },
-      {} as Record<string, ComponentDelivery>
-    );
-
-    // Create new component deliveries array
-    const newComponentDeliveries = Array.from(uniqueComponents).map(
-      (component) => {
-        // Keep existing links if the component was already in the list
-        return existingComponents[component] || { name: component };
-      }
-    );
-
-    setFormData((prev) => ({
-      ...prev,
-      componentDeliveries: newComponentDeliveries,
-    }));
-  };
-
   const handleSelectAll = () => {
     const newSelectedTickets: Record<string, boolean> = {};
-    filteredTickets.forEach((ticket) => {
+    tickets.forEach((ticket) => {
       newSelectedTickets[ticket.ticketId] = true;
     });
     setSelectedTickets(newSelectedTickets);
-    updateComponentDeliveries(newSelectedTickets);
+    setSelectedTicketDetails(tickets);
   };
 
   const handleDeselectAll = () => {
     setSelectedTickets({});
-    setFormData((prev) => ({
-      ...prev,
-      componentDeliveries: [],
-    }));
+    setSelectedTicketDetails([]);
   };
 
   const handleInputChange = (
@@ -488,6 +630,39 @@ const NewRelease: React.FC = () => {
     }
   };
 
+  // Update component deliveries whenever selectedTicketDetails changes
+  useEffect(() => {
+    // Extract unique components from selected tickets
+    const uniqueComponents = new Set<string>();
+    selectedTicketDetails.forEach((ticket) => {
+      ticket.components.forEach((component) => {
+        uniqueComponents.add(component);
+      });
+    });
+
+    // Create or update component deliveries
+    const existingComponents = formData.componentDeliveries.reduce(
+      (acc, comp) => {
+        acc[comp.name] = comp;
+        return acc;
+      },
+      {} as Record<string, ComponentDelivery>
+    );
+
+    // Create new component deliveries array
+    const newComponentDeliveries = Array.from(uniqueComponents).map(
+      (component) => {
+        // Keep existing links if the component was already in the list
+        return existingComponents[component] || { name: component };
+      }
+    );
+
+    setFormData((prev) => ({
+      ...prev,
+      componentDeliveries: newComponentDeliveries,
+    }));
+  }, [selectedTicketDetails]);
+
   if (loading) {
     return (
       <div className="dark-theme min-vh-100 d-flex align-items-center justify-content-center">
@@ -515,8 +690,11 @@ const NewRelease: React.FC = () => {
           <div className="row">
             <div className="col-md-8">
               <div className="card bg-dark border-secondary mb-4">
-                <div className="card-header border-secondary">
+                <div className="card-header border-secondary d-flex justify-content-between align-items-center">
                   <h5 className="mb-0 text-light">Select JIRA Tickets</h5>
+                  <span className="badge bg-primary">
+                    {selectedTicketDetails.length} selected
+                  </span>
                 </div>
                 <div className="card-body">
                   <div className="row g-3 mb-3">
@@ -534,7 +712,7 @@ const NewRelease: React.FC = () => {
                         />
                       </div>
                     </div>
-                    <div className="col-lg-4" style={{ position: 'relative' }}>
+                    <div className="col-lg-4">
                       <Select
                         isMulti
                         options={statusOptions}
@@ -545,18 +723,14 @@ const NewRelease: React.FC = () => {
                                 statusFilter.includes(option.value)
                               )
                         }
-                        onChange={(selected) =>
-                          handleStatusFilterChange(selected)
-                        }
+                        onChange={handleStatusFilterChange}
+                        placeholder="Filter by Status"
+                        styles={selectStyles}
                         className="react-select-container"
                         classNamePrefix="react-select"
-                        styles={selectStyles}
-                        placeholder="Select Statuses"
-                        menuPortalTarget={document.body}
-                        menuPosition="fixed"
                       />
                     </div>
-                    <div className="col-lg-4" style={{ position: 'relative' }}>
+                    <div className="col-lg-4">
                       <Select
                         isMulti
                         options={fixVersionOptions}
@@ -568,142 +742,74 @@ const NewRelease: React.FC = () => {
                               )
                         }
                         onChange={handleFixVersionFilterChange}
+                        placeholder="Filter by Fix Version"
+                        styles={selectStyles}
                         className="react-select-container"
                         classNamePrefix="react-select"
-                        styles={selectStyles}
-                        placeholder="Select Fix Versions"
-                        menuPortalTarget={document.body}
-                        menuPosition="fixed"
                       />
                     </div>
                   </div>
 
-                  <div className="d-flex justify-content-between mb-3">
-                    <div>
-                      <span className="text-light-muted me-2">
-                        {Object.values(selectedTickets).filter(Boolean).length}{' '}
-                        tickets selected
-                      </span>
-                    </div>
-                    <div>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-outline-light me-2"
-                        onClick={handleSelectAll}
-                      >
-                        Select All
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-outline-secondary"
-                        onClick={handleDeselectAll}
-                      >
-                        Deselect All
-                      </button>
-                    </div>
-                  </div>
+                  <JiraTicketTable
+                    tickets={tickets}
+                    selectedTickets={selectedTickets}
+                    onTicketSelect={handleTicketSelect}
+                    loading={loading}
+                    onSelectAll={handleSelectAll}
+                    onDeselectAll={handleDeselectAll}
+                  />
+                </div>
+              </div>
 
-                  <div className="table-responsive">
-                    <table className="table table-dark table-hover mb-0">
-                      <thead>
-                        <tr className="border-secondary">
-                          <th
-                            className="border-secondary"
-                            style={{ width: '40px' }}
-                          ></th>
-                          <th className="border-secondary">Ticket ID</th>
-                          <th className="border-secondary">Summary</th>
-                          <th className="border-secondary">Status</th>
-                          <th className="border-secondary">Assignee</th>
-                          <th className="border-secondary">Components</th>
-                          <th className="border-secondary">Fix Versions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredTickets.length === 0 ? (
+              {selectedTicketDetails.length > 0 && (
+                <div className="card bg-dark border-secondary mb-4">
+                  <div className="card-header border-secondary">
+                    <h5 className="mb-0 text-light">Selected Tickets</h5>
+                  </div>
+                  <div className="card-body">
+                    <div className="table-responsive">
+                      <table className="table table-dark table-hover border-secondary">
+                        <thead>
                           <tr>
-                            <td
-                              colSpan={7}
-                              className="text-center p-4 text-light-muted border-secondary"
-                            >
-                              No tickets found matching your criteria
-                            </td>
+                            <th>Ticket ID</th>
+                            <th>Summary</th>
+                            <th>Components</th>
+                            <th>Actions</th>
                           </tr>
-                        ) : (
-                          filteredTickets.map((ticket) => (
-                            <tr
-                              key={ticket.ticketId}
-                              className={`border-secondary ${
-                                selectedTickets[ticket.ticketId]
-                                  ? 'table-active'
-                                  : ''
-                              }`}
-                              onClick={() =>
-                                handleTicketSelect(ticket.ticketId)
-                              }
-                              style={{ cursor: 'pointer' }}
-                            >
-                              <td className="border-secondary">
-                                <div className="form-check">
-                                  <input
-                                    type="checkbox"
-                                    className="form-check-input"
-                                    checked={!!selectedTickets[ticket.ticketId]}
-                                    onChange={() =>
-                                      handleTicketSelect(ticket.ticketId)
-                                    }
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                </div>
-                              </td>
-                              <td className="border-secondary">
+                        </thead>
+                        <tbody>
+                          {selectedTicketDetails.map((ticket) => (
+                            <tr key={ticket.ticketId}>
+                              <td>
                                 <a
-                                  href={`${process.env.REACT_APP_JIRA_BASE_URL}/browse/${ticket.ticketId}`}
+                                  href={`https://appveen.atlassian.net/browse/${ticket.ticketId}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-info text-decoration-none"
-                                  onClick={(e) => e.stopPropagation()}
                                 >
                                   {ticket.ticketId}
                                 </a>
                               </td>
-                              <td className="border-secondary text-light">
-                                {ticket.summary}
-                              </td>
-                              <td className="border-secondary text-light">
-                                {ticket.status}
-                              </td>
-                              <td className="border-secondary text-light">
-                                {ticket.assignee}
-                              </td>
-                              <td className="border-secondary">
-                                {ticket.components.map((component, index) => (
-                                  <span
-                                    key={index}
-                                    className="badge bg-dark border border-success text-success me-1"
-                                  >
-                                    {component}
-                                  </span>
-                                ))}
-                              </td>
-                              <td className="border-secondary">
-                                {ticket.fixVersions.map((version, index) => (
-                                  <span
-                                    key={index}
-                                    className="badge bg-dark border border-success text-success me-1"
-                                  >
-                                    {version}
-                                  </span>
-                                ))}
+                              <td>{ticket.summary}</td>
+                              <td>{ticket.components.join(', ')}</td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline-danger"
+                                  onClick={() =>
+                                    handleTicketSelect(ticket.ticketId)
+                                  }
+                                >
+                                  Remove
+                                </button>
                               </td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {formData.componentDeliveries.length > 0 && (
                 <div className="card bg-dark border-secondary mb-4">
@@ -884,8 +990,7 @@ const NewRelease: React.FC = () => {
                     className="btn btn-primary"
                     disabled={
                       !formData.version ||
-                      Object.values(selectedTickets).filter(Boolean).length ===
-                        0
+                      Object.keys(selectedTickets).filter(Boolean).length === 0
                     }
                   >
                     Create Release
