@@ -132,7 +132,8 @@ router.post('/', async (req, res) => {
             componentDeliveries: req.body.componentDeliveries || [],
             releasedBy: req.body.releasedBy,
             jenkinsBuildUrl: req.body.jenkinsBuildUrl,
-            serviceId: req.body.serviceId
+            serviceId: req.body.serviceId,
+            customers: req.body.customers || []
         });
 
         const newRelease = await release.save();

@@ -5,6 +5,7 @@ import { ApiResponse } from '../types/api';
 // Type for creating a new release
 export type CreateReleaseDto = Omit<Release, '_id'> & {
     tickets?: JiraTicket[];
+    customers?: string[];
 };
 
 // Type for updating a release

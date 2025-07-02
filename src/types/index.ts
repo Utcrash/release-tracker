@@ -85,7 +85,7 @@ export interface Release {
     notes?: string;
     additionalPoints?: string[];
     componentDeliveries?: ComponentDelivery[];
-    customer?: string;
+    customers?: string[];
 }
 
 export interface JiraTicket {

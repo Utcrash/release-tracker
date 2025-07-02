@@ -18,7 +18,8 @@ const releaseSchema = new mongoose.Schema({
     componentDeliveries: [componentDeliverySchema],
     releasedBy: { type: String },
     jenkinsBuildUrl: { type: String },
-    serviceId: { type: String }
+    serviceId: { type: String },
+    customers: [{ type: String }]
 }, {
     timestamps: true,
     toJSON: { virtuals: true },

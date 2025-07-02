@@ -171,6 +171,7 @@ interface NewReleaseFormData {
   notes: string;
   additionalPoints: string[];
   componentDeliveries: ComponentDelivery[];
+  customers: string[];
 }
 
 const NewRelease: React.FC = () => {
@@ -198,10 +199,12 @@ const NewRelease: React.FC = () => {
     notes: '',
     additionalPoints: [''],
     componentDeliveries: [],
+    customers: [],
   });
   const [showNewComponentModal, setShowNewComponentModal] = useState(false);
   const [newComponentName, setNewComponentName] = useState('');
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [customerInput, setCustomerInput] = useState('');
 
   // Convert arrays to react-select options
   const statusOptions: SelectOption[] = [
@@ -460,6 +463,36 @@ const NewRelease: React.FC = () => {
     }));
   };
 
+  const handleCustomerInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCustomerInput(e.target.value);
+  };
+
+  const handleCustomerInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if ((e.key === ' ' || e.key === 'Enter') && customerInput.trim()) {
+      e.preventDefault();
+      if (!formData.customers.includes(customerInput.trim())) {
+        setFormData((prev) => ({
+          ...prev,
+          customers: [...prev.customers, customerInput.trim()],
+        }));
+      }
+      setCustomerInput('');
+    } else if (e.key === 'Backspace' && !customerInput && formData.customers.length > 0) {
+      setCustomerInput(formData.customers[formData.customers.length - 1]);
+      setFormData((prev) => ({
+        ...prev,
+        customers: prev.customers.slice(0, -1),
+      }));
+    }
+  };
+
+  const handleRemoveCustomer = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      customers: prev.customers.filter((_, i) => i !== index),
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -487,6 +520,7 @@ const NewRelease: React.FC = () => {
           dockerHubLink: comp.dockerHubLink?.trim() || null,
           eDeliveryLink: comp.eDeliveryLink?.trim() || null,
         })),
+        customers: formData.customers,
       };
 
       // Send data to API
@@ -974,6 +1008,37 @@ const NewRelease: React.FC = () => {
                         </button>
                       </div>
                     ))}
+                  </div>
+
+                  <div className="mb-3">
+                    <label htmlFor="customers" className="form-label text-light">
+                      Customers
+                    </label>
+                    <div className="d-flex flex-wrap align-items-center bg-dark border border-secondary rounded p-2" style={{ minHeight: '44px' }}>
+                      {formData.customers.map((customer, idx) => (
+                        <span key={idx} className="badge bg-info text-dark me-2 mb-1 d-flex align-items-center">
+                          {customer}
+                          <button
+                            type="button"
+                            className="btn-close btn-close-white ms-1"
+                            style={{ fontSize: '0.7em', filter: 'invert(1)' }}
+                            aria-label="Remove"
+                            onClick={() => handleRemoveCustomer(idx)}
+                          ></button>
+                        </span>
+                      ))}
+                      <input
+                        type="text"
+                        className="form-control bg-dark text-light border-0 flex-grow-1 shadow-none"
+                        style={{ minWidth: '120px', boxShadow: 'none' }}
+                        id="customers"
+                        value={customerInput}
+                        onChange={handleCustomerInputChange}
+                        onKeyDown={handleCustomerInputKeyDown}
+                        placeholder={formData.customers.length === 0 ? 'Add customer and press space/enter' : ''}
+                        autoComplete="off"
+                      />
+                    </div>
                   </div>
                 </div>
 

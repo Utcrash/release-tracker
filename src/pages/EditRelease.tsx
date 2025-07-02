@@ -20,7 +20,7 @@ interface EditReleaseFormData {
   additionalPoints: string[];
   componentDeliveries: ComponentDelivery[];
   jiraTickets: JiraTicket[];
-  customer: string;
+  customers: string[];
 }
 
 interface JiraStatus {
@@ -74,13 +74,14 @@ const EditRelease: React.FC = () => {
     additionalPoints: [''],
     componentDeliveries: [],
     jiraTickets: [],
-    customer: '',
+    customers: [],
   });
   const [showNewComponentModal, setShowNewComponentModal] = useState(false);
   const [newComponentName, setNewComponentName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [customerInput, setCustomerInput] = useState('');
 
   // Debounce search term
   useEffect(() => {
@@ -123,7 +124,7 @@ const EditRelease: React.FC = () => {
           dockerHubLink: comp.dockerHubLink?.trim() || null,
           eDeliveryLink: comp.eDeliveryLink?.trim() || null,
         })),
-        customer: formData.customer,
+        customers: formData.customers,
       };
 
       // For backend compatibility, use 'tickets' instead of 'jiraTickets'
@@ -305,7 +306,9 @@ const EditRelease: React.FC = () => {
                   return ticket as JiraTicket;
                 })
               : [],
-            customer: releaseData.customer || '',
+            customers: Array.isArray(releaseData.customers)
+              ? releaseData.customers
+              : [],
           });
         } catch (releaseError) {
           console.error('Error fetching release:', releaseError);
@@ -495,13 +498,75 @@ const EditRelease: React.FC = () => {
     }));
   };
 
+  const handleCustomerInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCustomerInput(e.target.value);
+  };
+
+  const handleCustomerInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if ((e.key === ' ' || e.key === 'Enter') && customerInput.trim()) {
+      e.preventDefault();
+      if (!formData.customers.includes(customerInput.trim())) {
+        setFormData((prev) => ({
+          ...prev,
+          customers: [...prev.customers, customerInput.trim()],
+        }));
+      }
+      setCustomerInput('');
+    } else if (e.key === 'Backspace' && !customerInput && formData.customers.length > 0) {
+      setCustomerInput(formData.customers[formData.customers.length - 1]);
+      setFormData((prev) => ({
+        ...prev,
+        customers: prev.customers.slice(0, -1),
+      }));
+    }
+  };
+
+  const handleRemoveCustomer = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      customers: prev.customers.filter((_, i) => i !== index),
+    }));
+  };
+
   return (
     <div className="container-fluid dark-theme p-4">
       <div className="row">
         <div className="col">
           <h1>Edit Release</h1>
+          {/* Save/Cancel Button Panel at the Top */}
+          <div className="card bg-dark border-secondary mb-4">
+            <div className="card-body">
+              <div className="d-flex justify-content-between">
+                <Link
+                  to={`/releases/${id}`}
+                  className="btn btn-outline-secondary"
+                >
+                  Cancel
+                </Link>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={submitting || !formData.version}
+                  form="edit-release-form"
+                >
+                  {submitting ? (
+                    <>
+                      <span
+                        className="spinner-border spinner-border-sm me-1"
+                        role="status"
+                        aria-hidden="true"
+                      ></span>
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
           {error && <div className="alert alert-danger">{error}</div>}
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} id="edit-release-form">
             <div className="row">
               <div className="col-12">
                 <div className="card bg-dark border-secondary mb-4">
@@ -569,20 +634,36 @@ const EditRelease: React.FC = () => {
 
                       <div className="col-md-6 mb-3">
                         <label
-                          htmlFor="customer"
+                          htmlFor="customers"
                           className="form-label text-light"
                         >
-                          Customer
+                          Customers
                         </label>
-                        <input
-                          type="text"
-                          className="form-control bg-dark text-light border-secondary"
-                          id="customer"
-                          name="customer"
-                          value={formData.customer}
-                          onChange={handleInputChange}
-                          placeholder="Customer name (optional)"
-                        />
+                        <div className="d-flex flex-wrap align-items-center bg-dark border border-secondary rounded p-2" style={{ minHeight: '44px' }}>
+                          {formData.customers.map((customer, idx) => (
+                            <span key={idx} className="badge bg-info text-dark me-2 mb-1 d-flex align-items-center">
+                              {customer}
+                              <button
+                                type="button"
+                                className="btn-close btn-close-white ms-1"
+                                style={{ fontSize: '0.7em', filter: 'invert(1)' }}
+                                aria-label="Remove"
+                                onClick={() => handleRemoveCustomer(idx)}
+                              ></button>
+                            </span>
+                          ))}
+                          <input
+                            type="text"
+                            className="form-control bg-dark text-light border-0 flex-grow-1 shadow-none"
+                            style={{ minWidth: '120px', boxShadow: 'none' }}
+                            id="customers"
+                            value={customerInput}
+                            onChange={handleCustomerInputChange}
+                            onKeyDown={handleCustomerInputKeyDown}
+                            placeholder={formData.customers.length === 0 ? 'Add customer and press space/enter' : ''}
+                            autoComplete="off"
+                          />
+                        </div>
                       </div>
 
                       <div className="col-12 mb-3">
@@ -603,6 +684,41 @@ const EditRelease: React.FC = () => {
                         ></textarea>
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* Selected Tickets Section before Components Affected */}
+                <div className="mb-4">
+                  <h4>Selected Tickets ({formData.jiraTickets.length})</h4>
+                  <div className="table-responsive">
+                    <table className="table table-dark table-hover">
+                      <thead>
+                        <tr>
+                          <th>Ticket ID</th>
+                          <th>Summary</th>
+                          <th>Status</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {formData.jiraTickets.map((ticket) => (
+                          <tr key={ticket.ticketId}>
+                            <td>{ticket.ticketId}</td>
+                            <td>{ticket.summary}</td>
+                            <td>{ticket.status}</td>
+                            <td>
+                              <button
+                                type="button"
+                                className="btn btn-danger btn-sm"
+                                onClick={() => handleJiraTicketToggle(ticket)}
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
 
@@ -893,75 +1009,9 @@ const EditRelease: React.FC = () => {
                     </div>
                   </div>
                 </div>
-
-                <div className="card bg-dark border-secondary">
-                  <div className="card-body">
-                    <div className="d-flex justify-content-between">
-                      <Link
-                        to={`/releases/${id}`}
-                        className="btn btn-outline-secondary"
-                      >
-                        Cancel
-                      </Link>
-                      <button
-                        type="submit"
-                        className="btn btn-primary"
-                        disabled={submitting || !formData.version}
-                      >
-                        {submitting ? (
-                          <>
-                            <span
-                              className="spinner-border spinner-border-sm me-1"
-                              role="status"
-                              aria-hidden="true"
-                            ></span>
-                            Saving...
-                          </>
-                        ) : (
-                          'Save Changes'
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           </form>
-
-          {/* Display Selected Tickets Section */}
-          <div className="mb-4">
-            <h4>Selected Tickets ({formData.jiraTickets.length})</h4>
-            <div className="table-responsive">
-              <table className="table table-dark table-hover">
-                <thead>
-                  <tr>
-                    <th>Ticket ID</th>
-                    <th>Summary</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {formData.jiraTickets.map((ticket) => (
-                    <tr key={ticket.ticketId}>
-                      <td>{ticket.ticketId}</td>
-                      <td>{ticket.summary}</td>
-                      <td>{ticket.status}</td>
-                      <td>
-                        <button
-                          type="button"
-                          className="btn btn-danger btn-sm"
-                          onClick={() => handleJiraTicketToggle(ticket)}
-                        >
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
 
           {/* Add Component Modal */}
           {showNewComponentModal && (

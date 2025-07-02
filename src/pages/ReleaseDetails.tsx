@@ -400,8 +400,8 @@ const ReleaseDetails: React.FC = () => {
                 release.createdAt
               ).toLocaleDateString()}</p>
               ${
-                release.customer
-                  ? `<p><strong>Customer:</strong> ${release.customer}</p>`
+                Array.isArray(release.customers) && release.customers.length > 0
+                  ? `<p><strong>Customers:</strong> ${release.customers.join(', ')}</p>`
                   : ''
               }
               ${
@@ -609,6 +609,12 @@ const ReleaseDetails: React.FC = () => {
                     </span>
                   </div>
                 </div>
+                {Array.isArray(release.customers) && release.customers.length > 0 && (
+                  <div className="row mb-3">
+                    <div className="col-md-4 text-light-muted">Customers:</div>
+                    <div className="col-md-8 text-light">{release.customers.join(', ')}</div>
+                  </div>
+                )}
                 <div className="row mb-3">
                   <div className="col-md-4 text-light-muted">Released By:</div>
                   <div className="col-md-8 text-light">
