@@ -5,6 +5,7 @@ import { Release, JiraTicket } from '../types';
 import { useAlert } from '../context/AlertContext';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './JiraTickets.css'; // Reuse the same CSS for consistency
+import * as XLSX from 'xlsx';
 
 const Releases: React.FC = () => {
   const navigate = useNavigate();
@@ -222,6 +223,26 @@ const Releases: React.FC = () => {
     );
   };
 
+  // Export to XLSX
+  const handleExportXLSX = () => {
+    const data = filteredReleases.map((release) => ({
+      'Release Version': release.version,
+      'Release Date': new Date(release.createdAt).toLocaleDateString(),
+      'Status': release.status,
+      'Components': (release.componentDeliveries || []).map(c => c.name).join(', '),
+      'Customers': (release.customers || []).join(', '),
+      'JIRA Ids': (release.tickets && release.tickets.length > 0
+        ? release.tickets.map(t => t.ticketId)
+        : Array.isArray(release.jiraTickets)
+          ? release.jiraTickets.map(t => typeof t === 'string' ? t : t.ticketId)
+          : []).join(', '),
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Releases');
+    XLSX.writeFile(wb, 'releases.xlsx');
+  };
+
   if (loading) {
     return (
       <div className="dark-theme min-vh-100 d-flex align-items-center justify-content-center">
@@ -256,6 +277,10 @@ const Releases: React.FC = () => {
                   onChange={(e) => setVersionFilter(e.target.value)}
                 />
               </div>
+              <button className="btn btn-outline-success me-2" onClick={handleExportXLSX}>
+                <i className="bi bi-file-earmark-excel me-1"></i>
+                Export to XLSX
+              </button>
               <Link to="/releases/new" className="btn btn-primary">
                 <i className="bi bi-plus me-2"></i>
                 New Release
@@ -274,7 +299,7 @@ const Releases: React.FC = () => {
                   <th className="border-secondary">Status</th>
                   <th className="border-secondary">Components</th>
                   <th className="border-secondary">Tickets</th>
-                  <th className="border-secondary">Notes</th>
+                  <th className="border-secondary">Customers</th>
                   <th className="border-secondary text-end">Actions</th>
                 </tr>
               </thead>
@@ -328,8 +353,8 @@ const Releases: React.FC = () => {
                       <td className="border-secondary text-light">
                         {getTicketCount(release)}
                       </td>
-                      <td className="border-secondary text-light-muted">
-                        {release.notes}
+                      <td className="border-secondary text-light">
+                        {(release.customers || []).join(', ')}
                       </td>
                       <td className="border-secondary text-end">
                         <Link
