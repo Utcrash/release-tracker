@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import Select, { MultiValue } from 'react-select';
 import { jiraService } from '../services/jiraService';
 import { releaseService } from '../services/releaseService';
 import { JiraTicket, ComponentDelivery } from '../types';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './JiraTickets.css';
+import { useUser } from '../context/UserContext';
 
 interface JiraStatus {
   id: string;
@@ -175,21 +176,16 @@ interface NewReleaseFormData {
 }
 
 const NewRelease: React.FC = () => {
+  const { role } = useUser();
   const navigate = useNavigate();
   const [tickets, setTickets] = useState<JiraTicket[]>([]);
-  const [selectedTickets, setSelectedTickets] = useState<
-    Record<string, boolean>
-  >({});
-  const [selectedTicketDetails, setSelectedTicketDetails] = useState<
-    JiraTicket[]
-  >([]);
+  const [selectedTickets, setSelectedTickets] = useState<Record<string, boolean>>({});
+  const [selectedTicketDetails, setSelectedTicketDetails] = useState<JiraTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string[]>([
-    'Ready for Release',
-  ]);
+  const [statusFilter, setStatusFilter] = useState<string[]>(['Ready for Release']);
   const [availableStatuses, setAvailableStatuses] = useState<JiraStatus[]>([]);
   const [fixVersionFilter, setFixVersionFilter] = useState<string[]>(['all']);
   const [uniqueFixVersions, setUniqueFixVersions] = useState<string[]>([]);
@@ -206,90 +202,14 @@ const NewRelease: React.FC = () => {
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [customerInput, setCustomerInput] = useState('');
 
-  // Convert arrays to react-select options
-  const statusOptions: SelectOption[] = [
-    { value: 'all', label: 'All Statuses' },
-    ...availableStatuses.map((status) => ({
-      value: status.name,
-      label: status.name,
-    })),
-  ];
-
-  const fixVersionOptions: SelectOption[] = [
-    { value: 'all', label: 'All Fix Versions' },
-    ...uniqueFixVersions.map((version) => ({
-      value: version,
-      label: version,
-    })),
-  ];
-
-  // Custom styles for react-select
-  const selectStyles = {
-    control: (base: any) => ({
-      ...base,
-      backgroundColor: '#212529',
-      borderColor: '#495057',
-      '&:hover': {
-        borderColor: '#6c757d',
-      },
-      position: 'relative',
-      zIndex: 2,
-    }),
-    menu: (base: any) => ({
-      ...base,
-      backgroundColor: '#212529',
-      border: '1px solid #495057',
-      zIndex: 9999,
-    }),
-    menuPortal: (base: any) => ({
-      ...base,
-      zIndex: 9999,
-    }),
-    option: (base: any, state: any) => ({
-      ...base,
-      backgroundColor: state.isFocused ? '#495057' : '#212529',
-      color: '#fff',
-      cursor: 'pointer',
-      ':active': {
-        backgroundColor: '#6c757d',
-      },
-    }),
-    multiValue: (base: any) => ({
-      ...base,
-      backgroundColor: '#495057',
-    }),
-    multiValueLabel: (base: any) => ({
-      ...base,
-      color: '#fff',
-    }),
-    multiValueRemove: (base: any) => ({
-      ...base,
-      color: '#fff',
-      ':hover': {
-        backgroundColor: '#dc3545',
-        color: '#fff',
-      },
-    }),
-    input: (base: any) => ({
-      ...base,
-      color: '#fff',
-    }),
-    singleValue: (base: any) => ({
-      ...base,
-      color: '#fff',
-    }),
-  };
-
   // Debounce search term
   useEffect(() => {
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
-
     searchTimeoutRef.current = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
-    }, 500); // 500ms delay
-
+    }, 500);
     return () => {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
@@ -306,29 +226,22 @@ const NewRelease: React.FC = () => {
         console.error('Error fetching JIRA statuses:', error);
       }
     };
-
-    fetchStatuses();
-  }, []);
+    if (role && ['editor', 'admin'].includes(role)) {
+      fetchStatuses();
+    }
+  }, [role]);
 
   useEffect(() => {
     const fetchTickets = async () => {
       try {
         setLoading(true);
-
-        // Get base status filter (default to 'Ready for Release' if empty)
-        const statuses =
-          statusFilter.length > 0 ? statusFilter : ['Ready for Release'];
-
-        // Fetch tickets with both status and search filters
+        const statuses = statusFilter.length > 0 ? statusFilter : ['Ready for Release'];
         const data = await jiraService.getTicketsByStatusesAndSearch(
           'DNIO',
           statuses,
           debouncedSearchTerm
         );
-
         setTickets(data);
-
-        // Update selectedTickets to remove any tickets that no longer exist in the results
         setSelectedTickets((prev) => {
           const newSelectedTickets = { ...prev };
           Object.keys(newSelectedTickets).forEach((ticketId) => {
@@ -338,26 +251,19 @@ const NewRelease: React.FC = () => {
           });
           return newSelectedTickets;
         });
-
-        // Update selectedTicketDetails to keep only tickets that are still selected
         setSelectedTicketDetails((prev) => {
-          // Keep existing selected tickets that are not in the current search results
           const existingSelected = prev.filter(
             (t) => !data.some((newT) => newT.ticketId === t.ticketId)
           );
-          // Add newly fetched tickets that are selected
           const newlySelected = data.filter((t) => selectedTickets[t.ticketId]);
           return [...existingSelected, ...newlySelected];
         });
-
-        // Extract unique fix versions
         const versions = new Set<string>();
         data.forEach((ticket: JiraTicket) => {
           ticket.fixVersions.forEach((version: string) => {
             versions.add(version);
           });
         });
-
         setUniqueFixVersions(Array.from(versions).sort());
         setError(null);
       } catch (err) {
@@ -367,9 +273,48 @@ const NewRelease: React.FC = () => {
         setLoading(false);
       }
     };
+    if (role && ['editor', 'admin'].includes(role)) {
+      fetchTickets();
+    }
+    // eslint-disable-next-line
+  }, [statusFilter, debouncedSearchTerm, role]);
 
-    fetchTickets();
-  }, [statusFilter, debouncedSearchTerm]);
+  // Update component deliveries whenever selectedTicketDetails changes
+  useEffect(() => {
+    // Extract unique components from selected tickets
+    const uniqueComponents = new Set<string>();
+    selectedTicketDetails.forEach((ticket) => {
+      ticket.components.forEach((component) => {
+        uniqueComponents.add(component);
+      });
+    });
+    // Create or update component deliveries
+    const existingComponents = formData.componentDeliveries.reduce(
+      (acc, comp) => {
+        acc[comp.name] = comp;
+        return acc;
+      },
+      {} as Record<string, ComponentDelivery>
+    );
+    // Create new component deliveries array
+    const newComponentDeliveries = Array.from(uniqueComponents).map(
+      (component) => {
+        // Keep existing links if the component was already in the list
+        return existingComponents[component] || { name: component };
+      }
+    );
+    setFormData((prev) => ({
+      ...prev,
+      componentDeliveries: newComponentDeliveries,
+    }));
+  }, [selectedTicketDetails]);
+
+  if (role === null) {
+    return <Navigate to="/login" replace />;
+  }
+  if (!['editor', 'admin'].includes(role)) {
+    return <div style={{ color: '#e03d5f', textAlign: 'center', marginTop: 40 }}>You do not have permission to create a new release.</div>;
+  }
 
   const handleTicketSelect = (ticketId: string) => {
     const ticket = tickets.find((t) => t.ticketId === ticketId);
@@ -664,38 +609,79 @@ const NewRelease: React.FC = () => {
     }
   };
 
-  // Update component deliveries whenever selectedTicketDetails changes
-  useEffect(() => {
-    // Extract unique components from selected tickets
-    const uniqueComponents = new Set<string>();
-    selectedTicketDetails.forEach((ticket) => {
-      ticket.components.forEach((component) => {
-        uniqueComponents.add(component);
-      });
-    });
+  // Convert arrays to react-select options
+  const statusOptions: SelectOption[] = [
+    { value: 'all', label: 'All Statuses' },
+    ...availableStatuses.map((status) => ({
+      value: status.name,
+      label: status.name,
+    })),
+  ];
 
-    // Create or update component deliveries
-    const existingComponents = formData.componentDeliveries.reduce(
-      (acc, comp) => {
-        acc[comp.name] = comp;
-        return acc;
+  const fixVersionOptions: SelectOption[] = [
+    { value: 'all', label: 'All Fix Versions' },
+    ...uniqueFixVersions.map((version) => ({
+      value: version,
+      label: version,
+    })),
+  ];
+
+  // Custom styles for react-select
+  const selectStyles = {
+    control: (base: any) => ({
+      ...base,
+      backgroundColor: '#212529',
+      borderColor: '#495057',
+      '&:hover': {
+        borderColor: '#6c757d',
       },
-      {} as Record<string, ComponentDelivery>
-    );
-
-    // Create new component deliveries array
-    const newComponentDeliveries = Array.from(uniqueComponents).map(
-      (component) => {
-        // Keep existing links if the component was already in the list
-        return existingComponents[component] || { name: component };
-      }
-    );
-
-    setFormData((prev) => ({
-      ...prev,
-      componentDeliveries: newComponentDeliveries,
-    }));
-  }, [selectedTicketDetails]);
+      position: 'relative',
+      zIndex: 2,
+    }),
+    menu: (base: any) => ({
+      ...base,
+      backgroundColor: '#212529',
+      border: '1px solid #495057',
+      zIndex: 9999,
+    }),
+    menuPortal: (base: any) => ({
+      ...base,
+      zIndex: 9999,
+    }),
+    option: (base: any, state: any) => ({
+      ...base,
+      backgroundColor: state.isFocused ? '#495057' : '#212529',
+      color: '#fff',
+      cursor: 'pointer',
+      ':active': {
+        backgroundColor: '#6c757d',
+      },
+    }),
+    multiValue: (base: any) => ({
+      ...base,
+      backgroundColor: '#495057',
+    }),
+    multiValueLabel: (base: any) => ({
+      ...base,
+      color: '#fff',
+    }),
+    multiValueRemove: (base: any) => ({
+      ...base,
+      color: '#fff',
+      ':hover': {
+        backgroundColor: '#dc3545',
+        color: '#fff',
+      },
+    }),
+    input: (base: any) => ({
+      ...base,
+      color: '#fff',
+    }),
+    singleValue: (base: any) => ({
+      ...base,
+      color: '#fff',
+    }),
+  };
 
   if (loading) {
     return (

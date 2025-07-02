@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { releaseService } from '../services/releaseService';
 import { Release, JiraTicket } from '../types';
 import { useAlert } from '../context/AlertContext';
+import { useUser } from '../context/UserContext';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './JiraTickets.css'; // Reuse the same CSS for consistency
 import * as XLSX from 'xlsx';
@@ -10,6 +11,7 @@ import * as XLSX from 'xlsx';
 const Releases: React.FC = () => {
   const navigate = useNavigate();
   const alert = useAlert();
+  const { role } = useUser();
   const [releases, setReleases] = useState<Release[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -19,8 +21,11 @@ const Releases: React.FC = () => {
   const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
-    fetchReleases();
-  }, [currentPage]); // Fetch when page changes
+    if (role !== null) {
+      fetchReleases();
+    }
+    // eslint-disable-next-line
+  }, [currentPage, role]);
 
   const fetchReleases = async () => {
     try {
@@ -37,6 +42,10 @@ const Releases: React.FC = () => {
       setLoading(false);
     }
   };
+
+  if (role === null) {
+    return <Navigate to="/login" replace />;
+  }
 
   // Function to filter releases based on version
   const filterReleases = (releases: Release[], filter: string): Release[] => {
@@ -281,10 +290,12 @@ const Releases: React.FC = () => {
                 <i className="bi bi-file-earmark-excel me-1"></i>
                 Export to XLSX
               </button>
-              <Link to="/releases/new" className="btn btn-primary">
-                <i className="bi bi-plus me-2"></i>
-                New Release
-              </Link>
+              {['editor', 'admin'].includes(role || '') && (
+                <Link to="/releases/new" className="btn btn-primary">
+                  <i className="bi bi-plus me-2"></i>
+                  New Release
+                </Link>
+              )}
             </div>
           </div>
         </div>
@@ -357,20 +368,24 @@ const Releases: React.FC = () => {
                         {(release.customers || []).join(', ')}
                       </td>
                       <td className="border-secondary text-end">
-                        <Link
-                          to={`/edit-release/${release._id}`}
-                          className="btn btn-sm btn-outline-light me-2"
-                        >
-                          <i className="bi bi-pencil"></i>
-                        </Link>
-                        <button
-                          className="btn btn-sm btn-outline-danger"
-                          onClick={() =>
-                            handleDelete(release._id, release.version)
-                          }
-                        >
-                          <i className="bi bi-trash"></i>
-                        </button>
+                        {['editor', 'admin'].includes(role || '') && (
+                          <>
+                            <Link
+                              to={`/edit-release/${release._id}`}
+                              className="btn btn-sm btn-outline-light me-2"
+                            >
+                              <i className="bi bi-pencil"></i>
+                            </Link>
+                            <button
+                              className="btn btn-sm btn-outline-danger"
+                              onClick={() =>
+                                handleDelete(release._id, release.version)
+                              }
+                            >
+                              <i className="bi bi-trash"></i>
+                            </button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))

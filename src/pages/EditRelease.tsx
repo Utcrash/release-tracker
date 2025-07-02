@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, Navigate } from 'react-router-dom';
 import Select, { MultiValue } from 'react-select';
 import { Release, ComponentDelivery, JiraTicket } from '../types';
 import { releaseService, UpdateReleaseDto } from '../services/releaseService';
@@ -7,6 +7,7 @@ import { jiraService } from '../services/jiraService';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '../styles/darkTheme.css';
 import './JiraTickets.css';
+import { useUser } from '../context/UserContext';
 
 type RouteParams = {
   id?: string;
@@ -82,6 +83,7 @@ const EditRelease: React.FC = () => {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [customerInput, setCustomerInput] = useState('');
+  const { role } = useUser();
 
   // Debounce search term
   useEffect(() => {
@@ -100,7 +102,104 @@ const EditRelease: React.FC = () => {
     };
   }, [searchTerm]);
 
-  // Server-side filtering is now handled in fetchJiraTickets useEffect
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!id) return;
+      try {
+        const releaseData = await releaseService.getReleaseById(id);
+        setRelease(releaseData);
+        setInitialVersion(releaseData.version);
+        setFormData({
+          version: releaseData.version || '',
+          releaseDate: new Date(releaseData.createdAt)
+            .toISOString()
+            .split('T')[0],
+          status: releaseData.status || 'Planned',
+          notes: releaseData.notes || '',
+          additionalPoints: releaseData.additionalPoints?.length
+            ? releaseData.additionalPoints
+            : [''],
+          componentDeliveries: releaseData.componentDeliveries?.length
+            ? releaseData.componentDeliveries
+            : [],
+          jiraTickets: Array.isArray(releaseData.jiraTickets)
+            ? releaseData.jiraTickets.map((ticket) => {
+                if (typeof ticket === 'string') {
+                  return {
+                    ticketId: ticket,
+                    summary: '',
+                    status: '',
+                    assignee: '',
+                    created: '',
+                    updated: '',
+                    components: [],
+                    fixVersions: [],
+                  };
+                }
+                return ticket as JiraTicket;
+              })
+            : [],
+          customers: Array.isArray(releaseData.customers)
+            ? releaseData.customers
+            : [],
+        });
+      } catch (releaseError) {
+        console.error('Error fetching release:', releaseError);
+        setError('Release not found. Please check the URL and try again.');
+      }
+      setLoading(false);
+    };
+    if (role && ['editor', 'admin'].includes(role)) {
+      fetchData();
+      fetchJiraTickets();
+      fetchStatuses();
+    }
+    // eslint-disable-next-line
+  }, [id, role]);
+
+  const fetchJiraTickets = async () => {
+    try {
+      setIsLoadingJiraTickets(true);
+
+      const data = await jiraService.getTicketsByStatusesAndSearch(
+        'DNIO',
+        statusFilter,
+        debouncedSearchTerm
+      );
+
+      // Extract all fix versions
+      const fixVersions = new Set<string>();
+      data.forEach((ticket) => {
+        ticket.fixVersions.forEach((version) => {
+          if (version) fixVersions.add(version);
+        });
+      });
+
+      setAvailableFixVersions(Array.from(fixVersions).sort());
+      setAllJiraTickets(data);
+      setAvailableJiraTickets(data);
+    } catch (error) {
+      console.error('Error fetching JIRA tickets:', error);
+    } finally {
+      setIsLoadingJiraTickets(false);
+    }
+  };
+
+  useEffect(() => {
+    if (role && ['editor', 'admin'].includes(role)) {
+      fetchJiraTickets();
+    }
+    // eslint-disable-next-line
+  }, [statusFilter, debouncedSearchTerm, role]);
+
+  const fetchStatuses = async () => {
+    try {
+      const statuses = await jiraService.getJiraStatuses();
+      setAvailableStatuses(statuses);
+    } catch (error) {
+      console.error('Error fetching JIRA statuses:', error);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -263,112 +362,6 @@ const EditRelease: React.FC = () => {
     }));
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        if (!id) return;
-
-        console.log('Fetching release with ID:', id);
-
-        try {
-          const releaseData = await releaseService.getReleaseById(id);
-          setRelease(releaseData);
-          setInitialVersion(releaseData.version);
-
-          // Initialize form data
-          setFormData({
-            version: releaseData.version || '',
-            releaseDate: new Date(releaseData.createdAt)
-              .toISOString()
-              .split('T')[0],
-            status: releaseData.status || 'Planned',
-            notes: releaseData.notes || '',
-            additionalPoints: releaseData.additionalPoints?.length
-              ? releaseData.additionalPoints
-              : [''],
-            componentDeliveries: releaseData.componentDeliveries?.length
-              ? releaseData.componentDeliveries
-              : [],
-            jiraTickets: Array.isArray(releaseData.jiraTickets)
-              ? releaseData.jiraTickets.map((ticket) => {
-                  if (typeof ticket === 'string') {
-                    return {
-                      ticketId: ticket,
-                      summary: '',
-                      status: '',
-                      assignee: '',
-                      created: '',
-                      updated: '',
-                      components: [],
-                      fixVersions: [],
-                    };
-                  }
-                  return ticket as JiraTicket;
-                })
-              : [],
-            customers: Array.isArray(releaseData.customers)
-              ? releaseData.customers
-              : [],
-          });
-        } catch (releaseError) {
-          console.error('Error fetching release:', releaseError);
-          setError('Release not found. Please check the URL and try again.');
-        }
-
-        setLoading(false);
-      } catch (err) {
-        console.error('Failed to fetch data:', err);
-        setError('Failed to fetch data');
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-    fetchJiraTickets();
-    fetchStatuses();
-  }, [id]);
-
-  const fetchJiraTickets = async () => {
-    try {
-      setIsLoadingJiraTickets(true);
-
-      const data = await jiraService.getTicketsByStatusesAndSearch(
-        'DNIO',
-        statusFilter,
-        debouncedSearchTerm
-      );
-
-      // Extract all fix versions
-      const fixVersions = new Set<string>();
-      data.forEach((ticket) => {
-        ticket.fixVersions.forEach((version) => {
-          if (version) fixVersions.add(version);
-        });
-      });
-
-      setAvailableFixVersions(Array.from(fixVersions).sort());
-      setAllJiraTickets(data);
-      setAvailableJiraTickets(data);
-    } catch (error) {
-      console.error('Error fetching JIRA tickets:', error);
-    } finally {
-      setIsLoadingJiraTickets(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchJiraTickets();
-  }, [statusFilter, debouncedSearchTerm]);
-
-  const fetchStatuses = async () => {
-    try {
-      const statuses = await jiraService.getJiraStatuses();
-      setAvailableStatuses(statuses);
-    } catch (error) {
-      console.error('Error fetching JIRA statuses:', error);
-    }
-  };
-
   const handleInputChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
@@ -527,6 +520,13 @@ const EditRelease: React.FC = () => {
       customers: prev.customers.filter((_, i) => i !== index),
     }));
   };
+
+  if (role === null) {
+    return <Navigate to="/login" replace />;
+  }
+  if (!['editor', 'admin'].includes(role)) {
+    return <div style={{ color: '#e03d5f', textAlign: 'center', marginTop: 40 }}>You do not have permission to edit this release.</div>;
+  }
 
   return (
     <div className="container-fluid dark-theme p-4">

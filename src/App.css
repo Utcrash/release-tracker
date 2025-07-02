@@ -57,6 +57,11 @@
   margin-left: 260px; /* This gives space for the fixed sidebar */
 }
 
+.main-content.no-sidebar {
+  margin-left: 0 !important;
+  padding: 0 !important;
+}
+
 /* Sidebar specific styles */
 .sidebar {
   position: fixed;

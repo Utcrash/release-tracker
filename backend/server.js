@@ -20,6 +20,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const cookieParser = require('cookie-parser');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -30,19 +31,13 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/dnio-r
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
-// CORS configuration - before routes
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-
-    // Handle preflight
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-    next();
-});
+const allowedOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
+app.use(cors({
+  origin: allowedOrigin,
+  credentials: true,
+}));
 
 // Connect to MongoDB - autoCreate: true will create the database if it doesn't exist
 mongoose.connect(MONGODB_URI, {
@@ -65,8 +60,12 @@ if (process.env.NODE_ENV !== 'production') {
 
 // API Routes - Include BASE_PATH for API endpoints
 const apiBasePath = `${BASE_PATH}/api`;
-app.use(`${apiBasePath}/jira`, require('./routes/jiraRoutes'));
-app.use(`${apiBasePath}/releases`, require('./routes/releases'));
+const { router: jiraRouter } = require('./routes/jiraRoutes');
+const { router: releasesRouter } = require('./routes/releases');
+const { router: authRouter } = require('./routes/auth');
+app.use(`${apiBasePath}/jira`, jiraRouter);
+app.use(`${apiBasePath}/releases`, releasesRouter);
+app.use(`${apiBasePath}/auth`, authRouter);
 
 // Serve static files from the React app when in production
 if (process.env.NODE_ENV === 'production') {

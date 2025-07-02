@@ -2,12 +2,16 @@ const express = require('express');
 const router = express.Router();
 const JiraTicket = require('../models/JiraTicket');
 const axios = require('axios');
+const { authMiddleware, requireRole, redisClient } = require('../middleware/auth');
+const jwt = require('jsonwebtoken');
 
 // JIRA API Configuration with safe fallbacks (no credentials)
 const JIRA_BASE_URL = process.env.JIRA_BASE_URL || 'https://appveen.atlassian.net';
 const JIRA_API_VERSION = process.env.JIRA_API_VERSION || '3';
 const JIRA_EMAIL = process.env.JIRA_EMAIL;
 const JIRA_API_TOKEN = process.env.JIRA_API_TOKEN;
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
 
 console.log('=== JIRA Configuration in jiraRoutes ===');
 console.log('JIRA_BASE_URL:', JIRA_BASE_URL);
@@ -114,4 +118,4 @@ router.get('/:ticketId', async (req, res) => {
     }
 });
 
-module.exports = router; 
+module.exports = { router }; 
