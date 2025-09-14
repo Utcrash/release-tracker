@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const JiraTicket = require('../models/JiraTicket');
 const axios = require('axios');
-const { authMiddleware, requireRole, redisClient } = require('../middleware/auth');
-const jwt = require('jsonwebtoken');
+// const { authMiddleware, requireRole, redisClient } = require('../middleware/auth');
+// const jwt = require('jsonwebtoken');
 
 // JIRA API Configuration with safe fallbacks (no credentials)
 const JIRA_BASE_URL = process.env.JIRA_BASE_URL || 'https://appveen.atlassian.net';
@@ -11,7 +11,7 @@ const JIRA_API_VERSION = process.env.JIRA_API_VERSION || '3';
 const JIRA_EMAIL = process.env.JIRA_EMAIL;
 const JIRA_API_TOKEN = process.env.JIRA_API_TOKEN;
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
+// const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
 
 console.log('=== JIRA Configuration in jiraRoutes ===');
 console.log('JIRA_BASE_URL:', JIRA_BASE_URL);
@@ -34,6 +34,8 @@ const jiraClient = axios.create({
 });
 
 // Proxy endpoint for JIRA API requests
+// Updated to support both deprecated /search and new /search/jql endpoints
+// Migration from deprecated endpoints (removal date: August 1, 2025)
 router.use('/proxy', async (req, res) => {
     try {
         // Get the path after /proxy
@@ -53,29 +55,45 @@ router.use('/proxy', async (req, res) => {
         console.log('Auth Header:', jiraClient.defaults.headers.Authorization ? 'Present' : 'Missing');
         console.log('================================\n');
 
-        // Special handling for search endpoint
+        // Special handling for search endpoints
         if (jiraPath === 'search') {
-            console.log('Processing JIRA search request');
+            console.log('Processing JIRA search request (deprecated)');
             console.log('JQL:', req.query.jql);
             console.log('Fields:', req.query.fields);
+        } else if (jiraPath === 'search/jql') {
+            console.log('Processing JIRA search/jql request (new endpoint)');
+            console.log('JQL:', req.body.jql);
+            console.log('Fields:', req.body.fields);
         }
 
-        const response = await jiraClient.get(url, {
-            params: req.query,
-            validateStatus: function (status) {
-                return true; // Accept all status codes
-            }
-        });
+        let response;
+        if (jiraPath === 'search/jql') {
+            // Use POST for the new search/jql endpoint
+            response = await jiraClient.post(url, req.body, {
+                validateStatus: function (status) {
+                    return true; // Accept all status codes
+                }
+            });
+        } else {
+            // Use GET for other endpoints
+            response = await jiraClient.get(url, {
+                params: req.query,
+                validateStatus: function (status) {
+                    return true; // Accept all status codes
+                }
+            });
+        }
 
         console.log('\n=== JIRA API Response Details ===');
         console.log('Status:', response.status);
         console.log('Status Text:', response.statusText);
         console.log('Headers:', JSON.stringify(response.headers, null, 2));
-        if (jiraPath === 'search') {
+        if (jiraPath === 'search' || jiraPath === 'search/jql') {
             console.log('Search Response:', JSON.stringify({
                 total: response.data?.total,
                 issues: response.data?.issues?.length,
-                maxResults: response.data?.maxResults
+                maxResults: response.data?.maxResults,
+                nextPageToken: response.data?.nextPageToken
             }, null, 2));
         } else {
             console.log('Response Data:', JSON.stringify(response.data, null, 2));

@@ -14,16 +14,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/release-tracker/api/auth/me', { credentials: 'include' })
-      .then(res => res.ok ? res.json() : Promise.reject())
-      .then(data => {
-        setRole(data.role);
-        setLoading(false);
-      })
-      .catch(() => {
-        setRole(null);
-        setLoading(false);
-      });
+    // fetch('/release-tracker/api/auth/me', { credentials: 'include' })
+    //   .then(res => res.ok ? res.json() : Promise.reject())
+    //   .then(data => {
+    //     setRole(data.role);
+    //     setLoading(false);
+    //   })
+    //   .catch(() => {
+    //     setRole(null);
+    //     setLoading(false);
+    //   });
+    // Set default role for testing without auth
+    setRole('editor');
+    setLoading(false);
   }, []);
 
   const logout = () => {

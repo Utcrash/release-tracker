@@ -51,6 +51,7 @@ interface JiraApiResponse {
             };
         };
     }>;
+    nextPageToken?: string;
 }
 
 interface JiraProject {
@@ -79,6 +80,8 @@ interface JiraStatusResponse {
 const jiraApi = api;
 // The path will be prefixed with /jira/proxy/ to use our backend proxy
 
+// Updated to use the new JIRA REST API v3 search/jql endpoint
+// Migration from deprecated /search endpoint (removal date: August 1, 2025)
 export const jiraService = {
     // Get all accessible projects
     getProjects: async (): Promise<JiraProject[]> => {
@@ -113,22 +116,20 @@ export const jiraService = {
 
             console.log('JQL Query:', jql); // Debug log
 
-            const response = await jiraApi.get<JiraApiResponse>('/jira/proxy/search', {
-                params: {
-                    jql,
-                    maxResults: 100,
-                    fields: [
-                        'key',
-                        'summary',
-                        'status',
-                        'priority',
-                        'assignee',
-                        'created',
-                        'updated',
-                        'components',
-                        'fixVersions'
-                    ].join(',')
-                }
+            const response = await jiraApi.post<JiraApiResponse>('/jira/proxy/search/jql', {
+                jql,
+                maxResults: 100,
+                fields: [
+                    'key',
+                    'summary',
+                    'status',
+                    'priority',
+                    'assignee',
+                    'created',
+                    'updated',
+                    'components',
+                    'fixVersions'
+                ]
             });
 
             return response.data.issues.map(issue => ({
@@ -183,21 +184,19 @@ export const jiraService = {
     getAllTickets: async (projectKey: string = DEFAULT_PROJECT_KEY): Promise<JiraTicket[]> => {
         try {
             const jql = `project = ${projectKey} ORDER BY priority DESC, created DESC`;
-            const response = await jiraApi.get<JiraApiResponse>('/jira/proxy/search', {
-                params: {
-                    jql,
-                    fields: [
-                        'key',
-                        'summary',
-                        'status',
-                        'priority',
-                        'assignee',
-                        'created',
-                        'updated',
-                        'components',
-                        'fixVersions'
-                    ].join(',')
-                }
+            const response = await jiraApi.post<JiraApiResponse>('/jira/proxy/search/jql', {
+                jql,
+                fields: [
+                    'key',
+                    'summary',
+                    'status',
+                    'priority',
+                    'assignee',
+                    'created',
+                    'updated',
+                    'components',
+                    'fixVersions'
+                ]
             });
 
             return response.data.issues.map(issue => ({
@@ -339,12 +338,10 @@ export const jiraService = {
 
             jql += " ORDER BY priority DESC, created DESC";
 
-            const response = await jiraApi.get<JiraApiResponse>('/jira/proxy/search', {
-                params: {
-                    jql,
-                    maxResults: 100,
-                    fields: 'key,summary,status,priority,assignee,created,updated,components,fixVersions'
-                }
+            const response = await jiraApi.post<JiraApiResponse>('/jira/proxy/search/jql', {
+                jql,
+                maxResults: 100,
+                fields: ['key', 'summary', 'status', 'priority', 'assignee', 'created', 'updated', 'components', 'fixVersions']
             });
 
             return response.data.issues.map(issue => ({

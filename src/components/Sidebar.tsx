@@ -4,7 +4,7 @@ import { releaseService } from '../services/releaseService';
 import { Release } from '../types';
 import './Sidebar.css';
 import { useUser } from '../context/UserContext';
-import { logout as logoutApi } from '../services/api';
+// import { logout as logoutApi } from '../services/api';
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
@@ -30,9 +30,9 @@ const Sidebar: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    try {
-      await logoutApi();
-    } catch {}
+    // try {
+    //   await logoutApi();
+    // } catch {}
     clearUser();
     navigate('/login');
   };

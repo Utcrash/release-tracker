@@ -78,28 +78,28 @@ export const handleVoidResponse = (response: any): void => {
     return;
 };
 
-export async function login(username: string, password: string): Promise<{ role: string }> {
-    try {
-        const response = await api.post<{ message: string; role: string }>(
-            '/auth/login',
-            { username, password },
-            { withCredentials: true }
-        );
-        return { role: response.data.role };
-    } catch (error: any) {
-        if (error.response && error.response.data && error.response.data.message) {
-            throw new Error(error.response.data.message);
-        }
-        throw new Error('Login failed');
-    }
-}
+// export async function login(username: string, password: string): Promise<{ role: string }> {
+//     try {
+//         const response = await api.post<{ message: string; role: string }>(
+//             '/auth/login',
+//             { username, password },
+//             { withCredentials: true }
+//         );
+//         return { role: response.data.role };
+//     } catch (error: any) {
+//         if (error.response && error.response.data && error.response.data.message) {
+//             throw new Error(error.response.data.message);
+//         }
+//         throw new Error('Login failed');
+//     }
+// }
 
-export async function logout(): Promise<void> {
-    try {
-        await api.post('/auth/logout', {}, { withCredentials: true });
-    } catch (error: any) {
-        throw new Error('Logout failed');
-    }
-}
+// export async function logout(): Promise<void> {
+//     try {
+//         await api.post('/auth/logout', {}, { withCredentials: true });
+//     } catch (error: any) {
+//         throw new Error('Logout failed');
+//     }
+// }
 
 export default api; 

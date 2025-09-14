@@ -3,13 +3,23 @@ const mongoose = require('mongoose');
 const userSchema = new mongoose.Schema({
   username: {
     type: String,
-    required: true,
+    trim: true,
+    // required for local users, not for Google users
+  },
+  email: {
+    type: String,
+    trim: true,
     unique: true,
-    trim: true
+    sparse: true, // allow multiple nulls for local users
+  },
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true,
   },
   passwordHash: {
     type: String,
-    required: true
+    // required for local users, not for Google users
   },
   role: {
     type: String,

@@ -6,21 +6,17 @@ process.env.JIRA_BASE_URL = process.env.REACT_APP_JIRA_BASE_URL;
 process.env.JIRA_API_VERSION = process.env.REACT_APP_JIRA_API_VERSION;
 process.env.JIRA_EMAIL = process.env.REACT_APP_JIRA_EMAIL;
 process.env.JIRA_API_TOKEN = process.env.REACT_APP_JIRA_API_TOKEN;
+const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
-// Debug environment variables
-console.log('==== Backend Environment Variables ====');
-console.log('JIRA_BASE_URL:', process.env.JIRA_BASE_URL);
-console.log('JIRA_EMAIL:', process.env.JIRA_EMAIL);
-console.log('JIRA_API_TOKEN exists:', !!process.env.JIRA_API_TOKEN);
-console.log('MONGODB_URI:', process.env.MONGODB_URI);
-console.log('BASE_PATH:', process.env.BASE_PATH);
-console.log('====================================');
 
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
-const cookieParser = require('cookie-parser');
+// const cookieParser = require('cookie-parser');
+// const session = require('express-session');
+// const RedisStore = require('connect-redis').default;
+// const { redisClient } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -31,13 +27,33 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/dnio-r
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
+// app.use(cookieParser());
 
 const allowedOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
 app.use(cors({
   origin: allowedOrigin,
   credentials: true,
 }));
+
+// Trust proxy for secure cookies if behind a proxy (e.g., Heroku, Nginx)
+// app.set('trust proxy', 1);
+
+// const COOKIE_SECRET = process.env.COOKIE_SECRET;
+
+// app.use(session({
+//   store: new RedisStore({ client: redisClient }),
+//   name: 'dniomp.sid',
+//   secret: COOKIE_SECRET,
+//   resave: false,
+//   saveUninitialized: false,
+//   cookie: {
+//     path: '/',
+//     secure: process.env.NODE_ENV === 'production',
+//     maxAge: 7200 * 1000, // 2 hours
+//     httpOnly: true,
+//     sameSite: 'strict',
+//   },
+// }));
 
 // Connect to MongoDB - autoCreate: true will create the database if it doesn't exist
 mongoose.connect(MONGODB_URI, {
@@ -62,10 +78,10 @@ if (process.env.NODE_ENV !== 'production') {
 const apiBasePath = `${BASE_PATH}/api`;
 const { router: jiraRouter } = require('./routes/jiraRoutes');
 const { router: releasesRouter } = require('./routes/releases');
-const { router: authRouter } = require('./routes/auth');
+// const { router: authRouter } = require('./routes/auth');
 app.use(`${apiBasePath}/jira`, jiraRouter);
 app.use(`${apiBasePath}/releases`, releasesRouter);
-app.use(`${apiBasePath}/auth`, authRouter);
+// app.use(`${apiBasePath}/auth`, authRouter);
 
 // Serve static files from the React app when in production
 if (process.env.NODE_ENV === 'production') {

@@ -310,9 +310,9 @@ const NewRelease: React.FC = () => {
   }, [selectedTicketDetails]);
 
   if (role === null) {
-    return <Navigate to="/login" replace />;
+    // return <Navigate to="/login" replace />;
   }
-  if (!['editor', 'admin'].includes(role)) {
+  if (!role || !['editor', 'admin'].includes(role)) {
     return <div style={{ color: '#e03d5f', textAlign: 'center', marginTop: 40 }}>You do not have permission to create a new release.</div>;
   }
 

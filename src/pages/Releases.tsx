@@ -44,7 +44,7 @@ const Releases: React.FC = () => {
   };
 
   if (role === null) {
-    return <Navigate to="/login" replace />;
+    // return <Navigate to="/login" replace />;
   }
 
   // Function to filter releases based on version
@@ -367,7 +367,7 @@ const Releases: React.FC = () => {
                       <td className="border-secondary text-light">
                         {(release.customers || []).join(', ')}
                       </td>
-                      <td className="border-secondary text-end">
+                      <td className="border-secondary text-end d-flex">
                         {['editor', 'admin'].includes(role || '') && (
                           <>
                             <Link
