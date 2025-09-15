@@ -431,7 +431,7 @@ const ReleaseDetails: React.FC = () => {
                           <td class="ticket-id">
                             <a href="${
                               process.env.REACT_APP_JIRA_BASE_URL ||
-                              'https://jira.example.com'
+                              'https://appveen.atlassian.net'
                             }/browse/${ticket.ticketId}" target="_blank">${
                             ticket.ticketId
                           }</a>
@@ -665,7 +665,7 @@ const ReleaseDetails: React.FC = () => {
                               <a
                                 href={`${
                                   process.env.REACT_APP_JIRA_BASE_URL ||
-                                  'https://jira.example.com'
+                                  'https://appveen.atlassian.net'
                                 }/browse/${ticket.ticketId}`}
                                 target="_blank"
                                 rel="noopener noreferrer"

@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  release-tracker:
+    image: utcrash/release-tracker:latest
+    container_name: release-tracker
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - MONGODB_URI=mongodb://172.31.7.194:27017/dnio-release-tracker
+      - JIRA_BASE_URL=https://appveen.atlassian.net/
+      - JIRA_EMAIL=utkarsh@datanimbus.com
+      - JIRA_API_TOKEN=ATATT3xFfGF0KuEmMfeYGJ0y_CnK5ceShAE-5T5ONo0NAOihyOHT0VdYhvdCmLx3LmIKsPwWEL6c6BmJvJEyB5U6Nk4r5Lgtpfan61_RJ0j78lDmkhtMLRuPo7eq6prOIQxKbPG5na24cI8OB9yGuvf2ggdKaPjz1tHnjQ5RLKPMD_1TYcM5XbM=1A3D3A95
+      - NODE_ENV=production
+      - PORT=3001
+      - BASE_PATH=/release-tracker
+    networks:
+      - release-tracker-network
+    depends_on:
+      - mongo
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/release-tracker/api/releases"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  mongo:
+    image: mongo:latest
+    container_name: release-tracker-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=dnio-release-tracker
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - release-tracker-network
+
+volumes:
+  mongo_data:
+
+networks:
+  release-tracker-network:
+    driver: bridge
